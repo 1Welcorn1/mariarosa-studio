@@ -1,0 +1,5 @@
+{
+  "name": "Maria Rosa AI Studio",
+  "description": "A high-fidelity AI fashion studio landing page allowing users to swap backgrounds, outfits, and colors using Gemini 2.5 Flash Image.",
+  "requestFramePermissions": []
+}
