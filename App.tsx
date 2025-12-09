@@ -4,7 +4,7 @@ import { ImageSourceType, EditingAction, AppState, CatalogItem, CartItem, AppVie
 import { PRODUCT_PRESETS, ACTION_OPTIONS, DEFAULT_PROMPTS } from './constants';
 import { generateEditedImage, generateHashtags, urlToBase64, enhancePrompt } from './services/geminiService';
 import { saveSession, loadSession } from './services/storageService';
-import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp } from 'lucide-react';
+import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp, Settings, Key } from 'lucide-react';
 
 // Custom WhatsApp Icon Component for consistent branding
 const WhatsAppLogo: React.FC<{ size?: number; className?: string }> = ({ size = 24, className = "" }) => (
@@ -50,6 +50,9 @@ const App: React.FC = () => {
   });
 
   const [sliderPosition, setSliderPosition] = useState(50);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('GEMINI_API_KEY') || '');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const catalogFileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +100,12 @@ const App: React.FC = () => {
   }, [state.selectedPresetId, state.sourceType]);
 
   // Handlers
+  const handleSaveApiKey = () => {
+    localStorage.setItem('GEMINI_API_KEY', apiKey);
+    setIsSettingsOpen(false);
+    setState(prev => ({...prev, statusMessage: "API Key Saved"}));
+  };
+
   const handleSourceChange = (type: ImageSourceType) => {
     setState(prev => ({
       ...prev,
@@ -285,6 +294,10 @@ const App: React.FC = () => {
   };
 
   const handleEnhancePrompt = async (action: string) => {
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
     const currentInput = state.promptInputs[action];
     if (!currentInput) return;
     
@@ -305,6 +318,10 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
     if (!state.currentImage) return;
     
     const finalPrompt = constructCompositePrompt();
@@ -317,8 +334,6 @@ const App: React.FC = () => {
     setSliderPosition(50);
 
     try {
-      // We use FREEFORM as the action type here to bypass the single-template logic in geminiService
-      // since we constructed a composite prompt already.
       const resultBase64 = await generateEditedImage(state.currentImage, finalPrompt, EditingAction.FREEFORM);
       setState(prev => ({ ...prev, generatedImage: resultBase64, isGenerating: false }));
     } catch (err: any) {
@@ -407,6 +422,10 @@ const App: React.FC = () => {
   // --- Variations Logic ---
   
   const handleGenerateVariation = async (item: CatalogItem) => {
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
     setState(prev => ({ ...prev, generatingVariationId: item.id, error: null }));
     try {
        // Use existing prompt or fallback
@@ -558,6 +577,10 @@ const App: React.FC = () => {
   // --- End Cart Logic ---
 
   const handleGenerateTags = async () => {
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
     setState(prev => ({ ...prev, isGeneratingTags: true, statusMessage: null }));
     try {
       let context = constructCompositePrompt();
@@ -731,6 +754,49 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-x-hidden">
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Settings className="text-purple-600" />
+                Settings
+              </h3>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                  <input 
+                    type="password" 
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Paste your API key here..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Your key is stored locally in your browser and used only to contact Google's servers.
+                </p>
+              </div>
+              
+              <button 
+                onClick={handleSaveApiKey}
+                className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Print Styles */}
       <style>{`
         @media print {
@@ -1202,6 +1268,15 @@ const App: React.FC = () => {
                             className="text-[10px] w-20 outline-none text-gray-600 placeholder-gray-400 bg-transparent font-medium"
                          />
                        </div>
+
+                       {/* Settings / API Key Button */}
+                       <button 
+                         onClick={() => setIsSettingsOpen(true)}
+                         className={`p-1.5 rounded-md transition-colors ${!apiKey ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
+                         title="API Key Settings"
+                       >
+                         <Settings size={16} />
+                       </button>
 
                        {/* Logo Upload Button */}
                        <button 

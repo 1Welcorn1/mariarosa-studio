@@ -2,32 +2,32 @@ import { AppState, CatalogItem } from "../types";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, writeBatch } from "firebase/firestore";
 
-// Firebase Configuration
-// Ensure these environment variables are set in your deployment environment
+// --- FIREBASE CONFIGURATION ---
+// PASTE YOUR CONFIG HERE FROM FIREBASE CONSOLE
+// It is safe to expose these keys on the frontend IF you set up Firestore Security Rules.
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
 
 // Initialize Firebase
 let db: any;
 try {
-  const app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
+  // Only initialize if config is replaced
+  if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+  }
 } catch (e) {
   console.warn("Firebase initialization failed. Check your config.", e);
 }
 
 const LOCAL_USER_ID_KEY = 'MARIA_ROSA_USER_ID';
 
-/**
- * Gets or creates a persistent unique ID for the user's browser session
- * to simulate personal storage without login.
- */
 const getUserSessionId = (): string => {
   let id = localStorage.getItem(LOCAL_USER_ID_KEY);
   if (!id) {
@@ -39,7 +39,7 @@ const getUserSessionId = (): string => {
 
 export const saveSession = async (state: AppState): Promise<{ success: boolean; message: string }> => {
   if (!db) {
-    return { success: false, message: "Firebase not configured." };
+    return { success: false, message: "Firebase not configured in code." };
   }
 
   const sessionId = getUserSessionId();
@@ -47,7 +47,6 @@ export const saveSession = async (state: AppState): Promise<{ success: boolean; 
   const workstationRef = doc(db, "sessions", sessionId, "data", "workstation");
 
   try {
-    // 1. Save Main Settings (Lightweight data)
     const mainData = {
       sourceType: state.sourceType,
       selectedPresetId: state.selectedPresetId,
@@ -56,25 +55,21 @@ export const saveSession = async (state: AppState): Promise<{ success: boolean; 
       generatedTags: state.generatedTags,
       curatorName: state.curatorName,
       phoneNumber: state.phoneNumber,
-      cart: state.cart, // Saving cart structure here. Images in cart are huge, but usually refs to catalog.
+      cart: state.cart,
       lastUpdated: Date.now()
     };
     
-    // 2. Save Workstation Images (Heavy data - separated to avoid doc limits)
     const workstationData = {
       uploadedImage: state.uploadedImage,
       currentImage: state.currentImage,
       generatedImage: state.generatedImage
     };
 
-    // Parallel writes for base docs
     await Promise.all([
       setDoc(sessionRef, mainData, { merge: true }),
       setDoc(workstationRef, workstationData, { merge: true })
     ]);
 
-    // 3. Save Catalog Items (Each item as a separate doc to handle size)
-    // Using a batch for atomicity (up to 500 ops)
     if (state.catalog.length > 0) {
       const batch = writeBatch(db);
       const catalogRef = collection(db, "sessions", sessionId, "catalog");
@@ -99,7 +94,7 @@ export const saveSession = async (state: AppState): Promise<{ success: boolean; 
 
 export const loadSession = async (): Promise<{ success: boolean; data?: Partial<AppState>; message: string }> => {
   if (!db) {
-    return { success: false, message: "Firebase not configured." };
+    return { success: false, message: "Firebase not configured in code." };
   }
 
   const sessionId = getUserSessionId();
@@ -108,7 +103,6 @@ export const loadSession = async (): Promise<{ success: boolean; data?: Partial<
   const catalogRef = collection(db, "sessions", sessionId, "catalog");
 
   try {
-    // 1. Load Main Data & Workstation in parallel
     const [sessionSnap, workstationSnap, catalogSnap] = await Promise.all([
       getDoc(sessionRef),
       getDoc(workstationRef),
@@ -122,19 +116,16 @@ export const loadSession = async (): Promise<{ success: boolean; data?: Partial<
     const mainData = sessionSnap.data();
     const workstationData = workstationSnap.exists() ? workstationSnap.data() : {};
     
-    // 2. Reconstruct Catalog
     const catalog: CatalogItem[] = [];
     catalogSnap.forEach(doc => {
       catalog.push(doc.data() as CatalogItem);
     });
-    // Sort by timestamp if possible, otherwise they come in random order usually
     catalog.sort((a, b) => b.timestamp - a.timestamp);
 
     const loadedState: Partial<AppState> = {
       ...mainData,
       ...workstationData,
       catalog: catalog,
-      // Ensure cart is typed correctly if loaded
       cart: (mainData.cart || [])
     };
 

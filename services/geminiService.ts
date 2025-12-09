@@ -2,12 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 import { EditingAction } from "../types";
 import { ACTION_OPTIONS } from "../constants";
 
-// Initialize the API client
-// Note: process.env.API_KEY is injected by the environment
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const IMAGE_MODEL_NAME = 'gemini-2.5-flash-image';
 const TEXT_MODEL_NAME = 'gemini-2.5-flash';
+
+// Helper to get client with dynamic key
+const getAiClient = (apiKey: string) => {
+  return new GoogleGenAI({ apiKey });
+};
 
 /**
  * Helper to fetch a URL and convert it to base64 string
@@ -42,6 +43,11 @@ export async function generateEditedImage(
   prompt: string,
   action: EditingAction
 ): Promise<string> {
+  const apiKey = localStorage.getItem("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("API Key missing. Please set it in Settings.");
+
+  const ai = getAiClient(apiKey);
+
   try {
     // Construct the prompt based on the action template
     const actionConfig = ACTION_OPTIONS.find(opt => opt.value === action);
@@ -66,20 +72,15 @@ export async function generateEditedImage(
           }
         ]
       },
-      // Config specific for nano banana / 2.5 flash image
-      config: {
-        // We don't use responseMimeType here as per guidelines for nano banana
-      }
+      config: {}
     });
 
-    // Check response structure for image parts
     const parts = response.candidates?.[0]?.content?.parts;
     
     if (!parts) {
       throw new Error("No content generated");
     }
 
-    // Iterate to find the image part
     for (const part of parts) {
       if (part.inlineData && part.inlineData.data) {
         return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
@@ -95,6 +96,11 @@ export async function generateEditedImage(
 }
 
 export async function generateHashtags(context: string): Promise<string[]> {
+  const apiKey = localStorage.getItem("GEMINI_API_KEY");
+  if (!apiKey) throw new Error("API Key missing.");
+  
+  const ai = getAiClient(apiKey);
+
   try {
     const response = await ai.models.generateContent({
       model: TEXT_MODEL_NAME,
@@ -107,10 +113,8 @@ export async function generateHashtags(context: string): Promise<string[]> {
     });
 
     const text = response.text || "";
-    // Extract hashtags using regex to ensure clean output
     const tags = text.match(/#[a-zA-Z0-9\u00C0-\u00FF]+/g) || [];
     
-    // If no tags found in text (fallback), try to split by space if the model didn't use #
     if (tags.length === 0) {
       return text.split(/\s+/).filter(w => w.length > 2).map(w => w.startsWith('#') ? w : `#${w}`);
     }
@@ -123,6 +127,11 @@ export async function generateHashtags(context: string): Promise<string[]> {
 }
 
 export async function enhancePrompt(currentPrompt: string, action: EditingAction): Promise<string> {
+  const apiKey = localStorage.getItem("GEMINI_API_KEY");
+  if (!apiKey) return currentPrompt;
+
+  const ai = getAiClient(apiKey);
+
   try {
     const response = await ai.models.generateContent({
       model: TEXT_MODEL_NAME,
