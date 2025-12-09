@@ -530,13 +530,26 @@ const App: React.FC = () => {
 
     const itemsList = state.cart.map((item, index) => {
       const qty = item.quantity || 1;
-      return `${index + 1}. ${qty}x ${item.name || "Item"} - ${item.price ? item.price : "Price TBD"}`;
-    }).join('\n');
+      // Using simple asterisks for bolding in WhatsApp
+      return `*${index + 1}. ${qty}x ${item.name || "Item"}*\n   Ref: ${item.id.slice(-4)}\n   ${item.price ? `Price: ${item.price}` : "Price: TBD"}`;
+    }).join('\n\n');
     
     const total = calculateTotal();
-    const totalDisplay = total > 0 ? `\n\nEst. Total: ${total.toFixed(2)}` : "";
+    const totalDisplay = total > 0 ? `\n\n*Estimated Total: ${total.toFixed(2)}*` : "";
 
-    const message = `Hi ${state.curatorName}, I am interested in these items from your catalog:\n\n${itemsList}${totalDisplay}\n\nLet's discuss details!`;
+    const message = `*NEW ORDER INQUIRY*\nHello ${state.curatorName}, I am interested in the following items from your lookbook:\n\n${itemsList}${totalDisplay}\n\nLet's discuss sizing and delivery details!`;
+    
+    const whatsappUrl = `https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleItemInquiry = (item: CatalogItem) => {
+    if (!state.phoneNumber) {
+      alert("Please configure a WhatsApp number in the Lookbook view first.");
+      return;
+    }
+
+    const message = `*PRODUCT INQUIRY*\n\nHello, I am looking at the *${item.name || "Presentation Item"}*.\nRef Code: ${item.id.slice(-6)}\nPrice: ${item.price || "On Request"}\n\nI would like more information about this specific piece.`;
     
     const whatsappUrl = `https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
@@ -644,6 +657,11 @@ const App: React.FC = () => {
                             `).join('')}
                         </div>
                         ` : ''}
+                        <div class="pt-6 no-print">
+                            <a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`I am interested in ${item.name}`)}" class="inline-flex items-center gap-2 text-green-600 font-bold border border-green-200 px-4 py-2 rounded-full hover:bg-green-50 transition-colors">
+                                <span>Negotiate via WhatsApp</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             `).join('')}
@@ -1124,6 +1142,15 @@ const App: React.FC = () => {
                                ))}
                             </div>
                           )}
+
+                          {/* Individual Item Inquiry Button - ONLY VISIBLE IN LOOKBOOK */}
+                          <button 
+                             onClick={() => handleItemInquiry(item)}
+                             className="no-print mt-4 inline-flex items-center gap-2 text-green-600 font-bold border border-green-200 px-4 py-2 rounded-full hover:bg-green-50 transition-colors text-sm"
+                          >
+                             <WhatsAppLogo size={16} />
+                             Ask about this piece
+                          </button>
                        </div>
                     </div>
                  ))}
