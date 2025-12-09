@@ -1,10 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
-import { ImageSourceType, EditingAction, AppState, CatalogItem, AppView } from './types';
+import { ImageSourceType, EditingAction, AppState, CatalogItem, CartItem, AppView } from './types';
 import { PRODUCT_PRESETS, ACTION_OPTIONS, DEFAULT_PROMPTS } from './constants';
 import { generateEditedImage, generateHashtags, urlToBase64, enhancePrompt } from './services/geminiService';
 import { saveSession, loadSession } from './services/storageService';
-import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode } from 'lucide-react';
+import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp } from 'lucide-react';
+
+// Custom WhatsApp Icon Component for consistent branding
+const WhatsAppLogo: React.FC<{ size?: number; className?: string }> = ({ size = 24, className = "" }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="currentColor"
+    className={className}
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 003.68 3.68C.44 6.92-.81 11.66 1.07 15.65L.15 19.86l4.31-.92a11.85 11.85 0 0017.36 1.54 11.85 11.85 0 00.3-16.71z"/>
+  </svg>
+);
 
 const App: React.FC = () => {
   // State
@@ -17,6 +31,7 @@ const App: React.FC = () => {
     activeActions: [EditingAction.BACKGROUND_SWAP],
     promptInputs: { ...DEFAULT_PROMPTS }, // Initialize with defaults
     isGenerating: false,
+    generatingVariationId: null,
     generatedImage: null,
     error: null,
     statusMessage: null,
@@ -25,11 +40,28 @@ const App: React.FC = () => {
     isEnhancingPrompt: false,
     // Catalog
     catalog: [],
-    currentView: 'STUDIO'
+    currentView: 'STUDIO',
+    curatorName: 'Maria Rosa', // Default curator name
+    // Cart
+    cart: [],
+    isCartOpen: false,
+    phoneNumber: '55 43 3025 5236',
+    logoUrl: null
   });
 
   const [sliderPosition, setSliderPosition] = useState(50);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const catalogFileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Helper for debounced auto-save
+  const triggerAutoSave = () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSaveSession(true);
+    }, 1000);
+  };
 
   // Clear status message after 3 seconds
   useEffect(() => {
@@ -106,6 +138,68 @@ const App: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setState(prev => ({ ...prev, error: "Logo size too large. Max 2MB.", statusMessage: null }));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setState(prev => ({
+          ...prev,
+          logoUrl: result,
+          statusMessage: "Logo updated!",
+          error: null
+        }));
+        triggerAutoSave();
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleCatalogFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setState(prev => ({ ...prev, error: "Image size too large. Max 5MB.", statusMessage: null }));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        
+        const newItem: CatalogItem = {
+          id: Date.now().toString(),
+          imageUrl: result,
+          prompt: "Uploaded from local",
+          actions: [],
+          timestamp: Date.now(),
+          tags: [],
+          name: "New Product",
+          description: "",
+          price: "",
+          variations: []
+        };
+
+        setState(prev => ({
+          ...prev,
+          catalog: [newItem, ...prev.catalog],
+          statusMessage: "Product added to Catalog!",
+          error: null
+        }));
+        
+        triggerAutoSave();
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset so same file can be selected again
+    e.target.value = '';
   };
 
   // Toggle Action Handler
@@ -264,19 +358,17 @@ const App: React.FC = () => {
       tags: state.generatedTags,
       name: "New Collection Item",
       description: "",
-      price: ""
+      price: "",
+      variations: []
     };
 
     setState(prev => ({
       ...prev,
       catalog: [newItem, ...prev.catalog],
       statusMessage: "Added to Catalog!",
-      // Automatically save to storage when adding
     }));
     
-    // We defer the actual saveSession call to the effect or manual save 
-    // but to be safe let's trigger a save immediately
-    setTimeout(() => handleSaveSession(), 100);
+    triggerAutoSave();
   };
 
   const handleUpdateCatalogItem = (id: string, field: keyof CatalogItem, value: string) => {
@@ -284,16 +376,20 @@ const App: React.FC = () => {
       ...prev,
       catalog: prev.catalog.map(item => 
         item.id === id ? { ...item, [field]: value } : item
-      )
+      ),
+      cart: prev.cart.map(item => 
+        item.id === id ? { ...item, [field]: value } : item
+      ) // Also update cart if item exists there
     }));
   };
 
   const handleRemoveFromCatalog = (id: string) => {
     setState(prev => ({
       ...prev,
-      catalog: prev.catalog.filter(item => item.id !== id)
+      catalog: prev.catalog.filter(item => item.id !== id),
+      cart: prev.cart.filter(item => item.id !== id) // Remove from cart as well
     }));
-    setTimeout(() => handleSaveSession(), 100);
+    triggerAutoSave();
   };
 
   const handleLoadFromCatalog = (item: CatalogItem) => {
@@ -308,7 +404,145 @@ const App: React.FC = () => {
     }));
   };
 
-  // --- End Catalog Logic ---
+  // --- Variations Logic ---
+  
+  const handleGenerateVariation = async (item: CatalogItem) => {
+    setState(prev => ({ ...prev, generatingVariationId: item.id, error: null }));
+    try {
+       // Use existing prompt or fallback
+       const prompt = item.prompt && item.prompt.length > 5 
+          ? item.prompt 
+          : "Generate a high quality variation of this fashion image, keeping the main subject but enhancing lighting and details.";
+       
+       // Call Gemini
+       const newImage = await generateEditedImage(item.imageUrl, prompt, EditingAction.FREEFORM);
+
+       setState(prev => ({
+         ...prev,
+         generatingVariationId: null,
+         catalog: prev.catalog.map(catItem =>
+           catItem.id === item.id
+             ? { ...catItem, variations: [newImage, ...(catItem.variations || [])] }
+             : catItem
+         ),
+         statusMessage: "Variation created!"
+       }));
+       triggerAutoSave();
+    } catch (err: any) {
+       console.error(err);
+       setState(prev => ({ ...prev, generatingVariationId: null, error: "Failed to create variation." }));
+    }
+  };
+
+  const handleSwapVariation = (itemId: string, variationIndex: number) => {
+    setState(prev => ({
+      ...prev,
+      catalog: prev.catalog.map(item => {
+        if (item.id === itemId) {
+          const currentMain = item.imageUrl;
+          const newMain = item.variations[variationIndex];
+          const newVariations = [...item.variations];
+          newVariations[variationIndex] = currentMain; // Swap
+          return { ...item, imageUrl: newMain, variations: newVariations };
+        }
+        return item;
+      })
+    }));
+    triggerAutoSave();
+  };
+
+  const handleDeleteVariation = (itemId: string, variationIndex: number) => {
+    setState(prev => ({
+      ...prev,
+      catalog: prev.catalog.map(item => {
+        if (item.id === itemId) {
+          const newVariations = [...item.variations];
+          newVariations.splice(variationIndex, 1);
+          return { ...item, variations: newVariations };
+        }
+        return item;
+      })
+    }));
+    triggerAutoSave();
+  };
+
+  // --- Cart / E-commerce Logic ---
+
+  const toggleCart = () => {
+    setState(prev => ({ ...prev, isCartOpen: !prev.isCartOpen }));
+  };
+
+  const addToCart = (item: CatalogItem) => {
+    const existingIndex = state.cart.findIndex(c => c.id === item.id);
+    
+    if (existingIndex >= 0) {
+       // Item exists, increment quantity
+       const newCart = [...state.cart];
+       newCart[existingIndex] = { ...newCart[existingIndex], quantity: (newCart[existingIndex].quantity || 1) + 1 };
+       setState(prev => ({ ...prev, cart: newCart, statusMessage: "Quantity updated in trolley!", isCartOpen: true }));
+    } else {
+       // Add new with quantity 1
+       const cartItem: CartItem = { ...item, quantity: 1 };
+       setState(prev => ({ ...prev, cart: [...prev.cart, cartItem], statusMessage: "Added to trolley!", isCartOpen: true }));
+    }
+    triggerAutoSave();
+  };
+
+  const updateCartQuantity = (id: string, delta: number) => {
+    setState(prev => ({
+      ...prev,
+      cart: prev.cart.map(item => {
+        if (item.id === id) {
+           const newQty = Math.max(1, (item.quantity || 1) + delta);
+           return { ...item, quantity: newQty };
+        }
+        return item;
+      })
+    }));
+    triggerAutoSave();
+  };
+
+  const removeFromCart = (id: string) => {
+    setState(prev => ({
+      ...prev,
+      cart: prev.cart.filter(item => item.id !== id)
+    }));
+    triggerAutoSave();
+  };
+
+  const calculateTotal = () => {
+    return state.cart.reduce((total, item) => {
+      // Simple parsing: remove non-numeric chars except dot
+      const cleanPrice = item.price.replace(/[^0-9.]/g, '');
+      const priceVal = parseFloat(cleanPrice);
+      const qty = item.quantity || 1;
+      return total + (isNaN(priceVal) ? 0 : priceVal * qty);
+    }, 0);
+  };
+
+  const handleWhatsAppCheckout = () => {
+    if (state.cart.length === 0) return;
+    
+    if (!state.phoneNumber) {
+      alert("Please configure a WhatsApp number in the Workstation or Lookbook view first.");
+      return;
+    }
+
+    const itemsList = state.cart.map((item, index) => {
+      const qty = item.quantity || 1;
+      return `${index + 1}. ${qty}x ${item.name || "Item"} - ${item.price ? item.price : "Price TBD"}`;
+    }).join('\n');
+    
+    const total = calculateTotal();
+    const totalDisplay = total > 0 ? `\n\nEst. Total: ${total.toFixed(2)}` : "";
+
+    const message = `Hi ${state.curatorName}, I am interested in these items from your catalog:\n\n${itemsList}${totalDisplay}\n\nLet's discuss details!`;
+    
+    const whatsappUrl = `https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // --- End Cart Logic ---
 
   const handleGenerateTags = async () => {
     setState(prev => ({ ...prev, isGeneratingTags: true, statusMessage: null }));
@@ -348,7 +582,12 @@ const App: React.FC = () => {
   };
 
   const handleExportHTML = () => {
-    const htmlContent = `
+     // Prepare logo part
+     const logoHtml = state.logoUrl 
+        ? `<img src="${state.logoUrl}" alt="Maria Rosa Logo" class="h-32 mx-auto mb-6 object-contain" />`
+        : `<div class="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8 mx-auto">MR</div>`;
+
+     const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -369,17 +608,13 @@ const App: React.FC = () => {
 </head>
 <body class="bg-white text-gray-900 antialiased">
     <div class="max-w-4xl mx-auto bg-white min-h-screen">
-        <!-- Cover Page -->
         <div class="p-16 flex flex-col items-center justify-center min-h-[80vh] text-center border-b border-gray-100 page-break">
-            <div class="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8">MR</div>
+            ${logoHtml}
             <h1 class="text-6xl text-gray-900 mb-4 tracking-tight">MARIA ROSA</h1>
             <p class="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Collection 2025</p>
             <div class="w-16 h-1 bg-gray-900 mb-8"></div>
-            <p class="text-gray-500">Curated by AI Studio</p>
             <p class="text-sm text-gray-400 mt-2">${new Date().toLocaleDateString()}</p>
         </div>
-
-        <!-- Items -->
         <div class="p-8 md:p-16 space-y-24">
             ${state.catalog.map((item, index) => `
                 <div class="flex flex-col ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} gap-12 items-center page-break-inside-avoid mb-16">
@@ -395,6 +630,11 @@ const App: React.FC = () => {
                         <p class="text-gray-600 leading-relaxed font-light text-lg">
                             ${item.description || "No description provided for this exclusive piece."}
                         </p>
+                        ${item.variations && item.variations.length > 0 ? `
+                           <div class="pt-4 grid grid-cols-4 gap-2">
+                             ${item.variations.slice(0,4).map(v => `<img src="${v}" class="w-full h-16 object-cover bg-gray-100" />`).join('')}
+                           </div>
+                        ` : ''}
                         ${item.tags.length > 0 ? `
                         <div class="pt-4 flex flex-wrap gap-2">
                             ${item.tags.slice(0, 5).map(tag => `
@@ -408,18 +648,16 @@ const App: React.FC = () => {
                 </div>
             `).join('')}
         </div>
-
-        <!-- Back Cover -->
         <div class="p-16 text-center border-t border-gray-100 bg-gray-50">
-            <h4 class="font-bold text-gray-900 uppercase tracking-widest mb-4">Maria Rosa AI Studio</h4>
+            ${logoHtml}
             <p class="text-gray-500 text-sm">mariarosa.style</p>
-            <p class="text-gray-500 text-sm">contact@mariarosa.style</p>
+            <p class="text-gray-500 text-sm">mariarosasuamoda@gmail.com</p>
+            ${state.phoneNumber ? `<a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}" class="inline-block mt-4 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold no-print">Contact via WhatsApp</a>` : ''}
         </div>
     </div>
 </body>
 </html>
     `;
-
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -432,17 +670,22 @@ const App: React.FC = () => {
   };
 
   // --- Session Management ---
-  const handleSaveSession = () => {
-    const result = saveSession(state);
+  const handleSaveSession = async (silent = false) => {
+    if (!silent) setState(prev => ({ ...prev, statusMessage: "Saving to cloud..." }));
+    
+    const result = await saveSession(state);
+    
     if (result.success) {
-      setState(prev => ({ ...prev, statusMessage: result.message, error: null }));
+      if (!silent) setState(prev => ({ ...prev, statusMessage: result.message, error: null }));
     } else {
-      setState(prev => ({ ...prev, error: result.message, statusMessage: null }));
+      if (!silent) setState(prev => ({ ...prev, error: result.message, statusMessage: null }));
     }
   };
 
-  const handleLoadSession = () => {
-    const result = loadSession();
+  const handleLoadSession = async () => {
+    setState(prev => ({ ...prev, statusMessage: "Loading from cloud..." }));
+    const result = await loadSession();
+    
     if (result.success && result.data) {
       setState(prev => ({
         ...prev,
@@ -451,7 +694,13 @@ const App: React.FC = () => {
         error: null,
         isGenerating: false,
         isGeneratingTags: false,
-        isEnhancingPrompt: false
+        isEnhancingPrompt: false,
+        // Ensure new fields are initialized if loading old session
+        cart: result.data.cart || [],
+        phoneNumber: result.data.phoneNumber || '',
+        logoUrl: result.data.logoUrl || null,
+        // Initialize variations if missing
+        catalog: (result.data.catalog || []).map(i => ({...i, variations: i.variations || []}))
       }));
     } else {
       setState(prev => ({ ...prev, error: result.message, statusMessage: null }));
@@ -463,7 +712,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-x-hidden">
       {/* Print Styles */}
       <style>{`
         @media print {
@@ -474,10 +723,106 @@ const App: React.FC = () => {
         }
       `}</style>
 
+      {/* Cart Drawer / Slide-over */}
+      <div className={`fixed inset-y-0 right-0 w-96 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out z-[60] flex flex-col ${state.isCartOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-4 bg-gray-900 text-white flex justify-between items-center shadow-md">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={20} />
+            <h2 className="font-bold text-lg">My Trolley ({state.cart.length})</h2>
+          </div>
+          <button onClick={toggleCart} className="text-gray-400 hover:text-white transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+        
+        <div className="flex-grow overflow-y-auto p-4 space-y-4">
+          {state.cart.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+               <ShoppingBag size={48} className="mb-4 opacity-20" />
+               <p>Your trolley is empty.</p>
+               <button onClick={toggleCart} className="mt-4 text-purple-600 font-medium hover:underline">Continue browsing</button>
+            </div>
+          ) : (
+            state.cart.map(item => (
+              <div key={item.id} className="flex gap-4 p-3 bg-gray-50 rounded-lg border border-gray-100 relative">
+                <img src={item.imageUrl} alt={item.name} className="w-20 h-20 object-cover rounded-md bg-white shadow-sm" />
+                <div className="flex-grow flex flex-col justify-between py-1">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 text-sm line-clamp-1 pr-6">{item.name || "Untitled Product"}</h4>
+                    <p className="text-xs text-purple-600 font-bold">{item.price || "Price TBD"}</p>
+                  </div>
+                  
+                  {/* Quantity Controls */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex items-center bg-white rounded-md border border-gray-200 shadow-sm">
+                       <button 
+                        onClick={() => updateCartQuantity(item.id, -1)} 
+                        className="p-1 hover:bg-gray-100 text-gray-600 rounded-l-md transition-colors"
+                      >
+                        <Minus size={14}/>
+                      </button>
+                       <span className="text-xs font-semibold w-8 text-center border-x border-gray-100">{item.quantity || 1}</span>
+                       <button 
+                        onClick={() => updateCartQuantity(item.id, 1)} 
+                        className="p-1 hover:bg-gray-100 text-gray-600 rounded-r-md transition-colors"
+                      >
+                        <Plus size={14}/>
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wide">Qty</span>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => removeFromCart(item.id)}
+                  className="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors"
+                  title="Remove Item"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-6 bg-gray-50 border-t border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+             <span className="text-gray-600 font-medium">Estimated Total</span>
+             <span className="text-2xl font-bold text-gray-900">{calculateTotal() > 0 ? calculateTotal().toFixed(2) : '--'}</span>
+          </div>
+          <button 
+            onClick={handleWhatsAppCheckout}
+            disabled={state.cart.length === 0}
+            className={`w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-95
+              ${state.cart.length === 0 
+                ? 'bg-gray-300 cursor-not-allowed' 
+                : 'bg-green-500 hover:bg-green-600 shadow-green-200'}`}
+          >
+            <WhatsAppLogo size={20} />
+            Negotiate on WhatsApp
+          </button>
+          {!state.phoneNumber && state.cart.length > 0 && (
+            <p className="text-xs text-red-500 text-center mt-2">
+              * Configure phone number in Workstation toolbar
+            </p>
+          )}
+        </div>
+      </div>
+      
+      {/* Overlay for Cart */}
+      {state.isCartOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[55]"
+          onClick={toggleCart}
+        ></div>
+      )}
+
       <Header 
         currentView={state.currentView} 
         onViewChange={handleViewChange} 
         catalogCount={state.catalog.length}
+        cartCount={state.cart.reduce((acc, item) => acc + (item.quantity || 1), 0)}
+        onToggleCart={toggleCart}
       />
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
@@ -491,9 +836,25 @@ const App: React.FC = () => {
                  <p className="text-gray-500 mt-1">Manage details and organize your collection.</p>
               </div>
               <div className="flex gap-2">
+                 {/* Add Product Button */}
+                 <button 
+                  onClick={() => catalogFileInputRef.current?.click()}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm"
+                >
+                  <Plus size={18} />
+                  Add Product
+                </button>
+                <input 
+                  type="file" 
+                  ref={catalogFileInputRef} 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={handleCatalogFileUpload} 
+                />
+
                  <button 
                   onClick={() => handleViewChange('LOOKBOOK')}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm"
+                  className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
                 >
                   <BookOpen size={18} />
                   View Lookbook
@@ -513,23 +874,41 @@ const App: React.FC = () => {
                     <FolderOpen className="text-gray-400" size={32} />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900">Your catalog is empty</h3>
-                  <p className="text-gray-500 max-w-md mx-auto mt-2 mb-6">Create stunning designs in the studio and save them here to build your campaign.</p>
-                  <button 
-                    onClick={() => handleViewChange('STUDIO')}
-                    className="text-purple-600 font-semibold hover:text-purple-800"
-                  >
-                    Go to Studio &rarr;
-                  </button>
+                  <p className="text-gray-500 max-w-md mx-auto mt-2 mb-6">Create stunning designs in the studio or upload your own products to build your campaign.</p>
+                  <div className="flex justify-center gap-4">
+                    <button 
+                      onClick={() => handleViewChange('STUDIO')}
+                      className="text-purple-600 font-semibold hover:text-purple-800"
+                    >
+                      Go to Studio &rarr;
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button 
+                      onClick={() => catalogFileInputRef.current?.click()}
+                      className="text-purple-600 font-semibold hover:text-purple-800"
+                    >
+                      Upload Product &rarr;
+                    </button>
+                  </div>
                </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {state.catalog.map((item) => (
                   <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 group hover:shadow-lg transition-all duration-300">
-                    <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden">
+                    <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden group">
                       <img src={item.imageUrl} alt="Catalog Item" className="w-full h-full object-cover" />
                       
+                      {/* ADD TO BAG - Always visible on mobile, hover on desktop */}
+                      <button 
+                          onClick={() => addToCart(item)}
+                          className="absolute bottom-4 right-4 bg-black text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:bg-gray-800 hover:scale-105 transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 z-10"
+                      >
+                         <ShoppingBag size={16} />
+                         Add to Bag
+                      </button>
+
                       {/* Overlay Controls */}
-                      <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                          <button 
                           onClick={() => handleLoadFromCatalog(item)}
                           className="bg-white/90 text-gray-900 p-2 rounded-full hover:bg-white shadow-sm backdrop-blur-sm"
@@ -552,6 +931,41 @@ const App: React.FC = () => {
                           <Trash2 size={16} />
                         </button>
                       </div>
+                    </div>
+
+                    {/* Variations Strip */}
+                    <div className="px-5 pt-4 pb-0 flex gap-2 overflow-x-auto no-scrollbar">
+                       {/* Generate Button */}
+                       <button 
+                         onClick={() => handleGenerateVariation(item)}
+                         disabled={state.generatingVariationId === item.id}
+                         className={`w-12 h-12 flex-shrink-0 border-2 border-dashed border-purple-300 rounded-md flex items-center justify-center text-purple-600 hover:bg-purple-50 hover:border-purple-500 transition-colors
+                           ${state.generatingVariationId === item.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                         title="Create AI Variation"
+                       >
+                         {state.generatingVariationId === item.id ? (
+                           <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                         ) : (
+                           <Layers size={18} />
+                         )}
+                       </button>
+
+                       {/* Existing Variations */}
+                       {item.variations && item.variations.map((vUrl, idx) => (
+                         <div key={idx} className="w-12 h-12 flex-shrink-0 relative group">
+                            <img 
+                              src={vUrl} 
+                              alt={`Variation ${idx}`} 
+                              className="w-full h-full object-cover rounded-md border border-gray-200 cursor-pointer"
+                              onClick={() => handleSwapVariation(item.id, idx)}
+                            />
+                            {/* Hover Actions */}
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-md flex items-center justify-center gap-1 transition-opacity">
+                               <button onClick={(e) => {e.stopPropagation(); handleSwapVariation(item.id, idx);}} className="text-white hover:text-green-400 p-0.5"><RefreshCw size={10} /></button>
+                               <button onClick={(e) => {e.stopPropagation(); handleDeleteVariation(item.id, idx);}} className="text-white hover:text-red-400 p-0.5"><Trash2 size={10} /></button>
+                            </div>
+                         </div>
+                       ))}
                     </div>
 
                     {/* Editable Fields */}
@@ -598,6 +1012,16 @@ const App: React.FC = () => {
                           </span>
                         ))}
                       </div>
+
+                      {/* Add to Cart Button */}
+                      <button 
+                        onClick={() => addToCart(item)}
+                        className="w-full mt-2 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <ShoppingBag size={16} />
+                        Add to Cart
+                      </button>
+
                     </div>
                   </div>
                 ))}
@@ -642,12 +1066,28 @@ const App: React.FC = () => {
               
               {/* Cover Page */}
               <div className="p-16 flex flex-col items-center justify-center min-h-[80vh] text-center border-b border-gray-100 page-break">
-                 <div className="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8">MR</div>
+                 {state.logoUrl ? (
+                   <img src={state.logoUrl} alt="Maria Rosa Logo" className="h-32 mx-auto mb-6 object-contain" />
+                 ) : (
+                   <div className="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8">MR</div>
+                 )}
                  <h1 className="text-6xl font-serif text-gray-900 mb-4 tracking-tight">MARIA ROSA</h1>
                  <p className="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Collection 2025</p>
                  <div className="w-16 h-1 bg-gray-900 mb-8"></div>
-                 <p className="text-gray-500">Curated by AI Studio</p>
-                 <p className="text-sm text-gray-400 mt-2">{new Date().toLocaleDateString()}</p>
+                 
+                 {/* Settings: WhatsApp Number */}
+                 <div className="flex items-center justify-center gap-2 text-gray-500 no-print">
+                    <WhatsAppLogo size={16} className="text-gray-400" />
+                    <input 
+                      type="text" 
+                      value={state.phoneNumber}
+                      onChange={(e) => setState(prev => ({...prev, phoneNumber: e.target.value}))}
+                      className="bg-transparent border-b border-gray-300 focus:border-black outline-none text-center w-40 placeholder-gray-300 hover:border-gray-400 transition-colors text-sm"
+                      placeholder="WhatsApp (ex: 5511...)"
+                    />
+                 </div>
+
+                 <p className="text-sm text-gray-400 mt-8">{new Date().toLocaleDateString()}</p>
               </div>
 
               {/* Items */}
@@ -669,6 +1109,12 @@ const App: React.FC = () => {
                              {item.description || "No description provided for this exclusive piece. Contact our sales team for more details on sizing and availability."}
                           </p>
 
+                          {item.variations && item.variations.length > 0 && (
+                            <div className="pt-4 grid grid-cols-4 gap-2">
+                              {item.variations.slice(0,4).map(v => <img src={v} className="w-full h-16 object-cover bg-gray-100" />)}
+                            </div>
+                          )}
+
                           {item.tags.length > 0 && (
                             <div className="pt-4 flex flex-wrap gap-2">
                                {item.tags.slice(0, 5).map(tag => (
@@ -685,9 +1131,13 @@ const App: React.FC = () => {
 
               {/* Back Cover */}
               <div className="p-16 text-center border-t border-gray-100 bg-gray-50 print:bg-white">
-                 <h4 className="font-bold text-gray-900 uppercase tracking-widest mb-4">Maria Rosa AI Studio</h4>
+                 {state.logoUrl ? (
+                   <img src={state.logoUrl} alt="Maria Rosa Logo" className="h-32 mx-auto mb-6 object-contain" />
+                 ) : (
+                   <div className="w-16 h-16 bg-black text-white rounded-full flex items-center justify-center text-xl font-bold mb-6 mx-auto">MR</div>
+                 )}
                  <p className="text-gray-500 text-sm">mariarosa.style</p>
-                 <p className="text-gray-500 text-sm">contact@mariarosa.style</p>
+                 <p className="text-gray-500 text-sm">mariarosasuamoda@gmail.com</p>
               </div>
             </div>
           </div>
@@ -713,18 +1163,48 @@ const App: React.FC = () => {
                   {/* Toolbar */}
                   <div className="bg-gray-50 border-b border-gray-100 px-6 py-3 flex justify-between items-center">
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Workstation</span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                       {/* WhatsApp Input */}
+                       <div className="flex items-center bg-white border border-gray-200 rounded-md px-2 py-1 focus-within:border-green-500 transition-colors mr-2" title="Set WhatsApp Number for Trolley">
+                         <WhatsAppLogo size={14} className="text-green-600 mr-1.5" />
+                         <input 
+                            type="text" 
+                            placeholder="WhatsApp..."
+                            value={state.phoneNumber}
+                            onChange={(e) => setState(prev => ({...prev, phoneNumber: e.target.value}))}
+                            className="text-[10px] w-20 outline-none text-gray-600 placeholder-gray-400 bg-transparent font-medium"
+                         />
+                       </div>
+
+                       {/* Logo Upload Button */}
+                       <button 
+                         onClick={() => logoInputRef.current?.click()}
+                         className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
+                         title="Upload Brand Logo"
+                       >
+                         <Stamp size={16} />
+                       </button>
+                       <input 
+                         type="file" 
+                         ref={logoInputRef}
+                         className="hidden" 
+                         accept="image/*"
+                         onChange={handleLogoUpload} 
+                       />
+
+                      <div className="h-4 w-px bg-gray-200 mx-1"></div>
+
                       <button 
-                        onClick={handleSaveSession}
+                        onClick={() => handleSaveSession(false)}
                         className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-                        title="Save current session"
+                        title="Save to Cloud"
                       >
-                        <Save size={16} />
+                        <Cloud size={16} />
                       </button>
                       <button 
                         onClick={handleLoadSession}
                         className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-                        title="Load last session"
+                        title="Load from Cloud"
                       >
                         <FolderOpen size={16} />
                       </button>

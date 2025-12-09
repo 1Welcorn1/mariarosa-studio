@@ -30,6 +30,12 @@ export interface CatalogItem {
   name: string;
   description: string;
   price: string;
+  // Variations support
+  variations: string[];
+}
+
+export interface CartItem extends CatalogItem {
+  quantity: number;
 }
 
 export type AppView = 'STUDIO' | 'CATALOG' | 'LOOKBOOK';
@@ -45,6 +51,7 @@ export interface AppState {
   promptInputs: Record<string, string>; // Map of ActionEnum -> User Input String
 
   isGenerating: boolean;
+  generatingVariationId: string | null; // Track which catalog item is generating a variation
   generatedImage: string | null;
   error: string | null;
   statusMessage: string | null; // For success messages like "Session Saved"
@@ -55,4 +62,13 @@ export interface AppState {
   // Catalog Features
   catalog: CatalogItem[];
   currentView: AppView;
+  curatorName: string; // Name of the curator/brand for the lookbook
+  
+  // E-commerce Features
+  cart: CartItem[];
+  isCartOpen: boolean;
+  phoneNumber: string; // WhatsApp number
+  
+  // Branding
+  logoUrl: string | null;
 }

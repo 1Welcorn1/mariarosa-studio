@@ -1,14 +1,16 @@
 import React from 'react';
-import { Sparkles, ShoppingBag, LayoutGrid } from 'lucide-react';
+import { Sparkles, ShoppingBag } from 'lucide-react';
 import { AppView } from '../types';
 
 interface HeaderProps {
   currentView: AppView;
   onViewChange: (view: AppView) => void;
   catalogCount: number;
+  cartCount: number;
+  onToggleCart: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catalogCount }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catalogCount, cartCount, onToggleCart }) => {
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -21,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catal
               <Sparkles size={20} />
             </div>
             <span className="font-bold text-xl tracking-tight text-gray-900 hidden sm:inline">
-              Maria Rosa <span className="text-purple-600">AI Studio</span>
+              Maria Rosa <span className="text-purple-600">Confecções</span>
             </span>
              <span className="font-bold text-xl tracking-tight text-gray-900 sm:hidden">
               Maria Rosa
@@ -60,6 +62,18 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catal
           </nav>
 
           <div className="flex items-center gap-4">
+            <button 
+              onClick={onToggleCart}
+              className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              title="Open Trolley"
+            >
+              <ShoppingBag size={22} />
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-0 h-5 w-5 bg-pink-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                  {cartCount}
+                </span>
+              )}
+            </button>
             <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
               MR
             </div>
