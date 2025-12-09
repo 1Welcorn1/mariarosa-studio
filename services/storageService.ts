@@ -1,6 +1,6 @@
 import { AppState } from "../types";
 
-const STORAGE_KEY = 'MARIA_ROSA_SESSION_V2'; // Bumped version
+const STORAGE_KEY = 'MARIA_ROSA_SESSION_V3'; // Bumped version for Catalog support
 
 export const saveSession = (state: AppState): { success: boolean; message: string } => {
   try {
@@ -13,11 +13,12 @@ export const saveSession = (state: AppState): { success: boolean; message: strin
       activeActions: state.activeActions,
       promptInputs: state.promptInputs,
       generatedImage: state.generatedImage,
-      generatedTags: state.generatedTags
+      generatedTags: state.generatedTags,
+      catalog: state.catalog // Save the catalog
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    return { success: true, message: "Session saved successfully!" };
+    return { success: true, message: "Session and Catalog saved successfully!" };
   } catch (error: any) {
     console.error("Save error:", error);
     // Check for quota exceeded (Storage full)
@@ -25,7 +26,7 @@ export const saveSession = (state: AppState): { success: boolean; message: strin
       error.name === 'QuotaExceededError' || 
       error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
     ) {
-       return { success: false, message: "Image is too large to save in browser storage." };
+       return { success: false, message: "Storage full. Try deleting some items from your catalog." };
     }
     return { success: false, message: "Failed to save session." };
   }

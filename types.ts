@@ -19,6 +19,21 @@ export interface ProductPreset {
   url: string;
 }
 
+export interface CatalogItem {
+  id: string;
+  imageUrl: string;
+  prompt: string;
+  actions: EditingAction[];
+  timestamp: number;
+  tags: string[];
+  // New Metadata fields
+  name: string;
+  description: string;
+  price: string;
+}
+
+export type AppView = 'STUDIO' | 'CATALOG' | 'LOOKBOOK';
+
 export interface AppState {
   sourceType: ImageSourceType;
   selectedPresetId: string;
@@ -35,5 +50,9 @@ export interface AppState {
   statusMessage: string | null; // For success messages like "Session Saved"
   generatedTags: string[];
   isGeneratingTags: boolean;
-  isEnhancingPrompt: boolean; // New state for the magic wand feature
+  isEnhancingPrompt: boolean;
+
+  // Catalog Features
+  catalog: CatalogItem[];
+  currentView: AppView;
 }
