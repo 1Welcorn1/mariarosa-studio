@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ImageSourceType, EditingAction, AppState, CatalogItem, CartItem, AppView } from './types';
 import { PRODUCT_PRESETS, ACTION_OPTIONS, DEFAULT_PROMPTS } from './constants';
-import { generateEditedImage, generateHashtags, urlToBase64, enhancePrompt } from './services/geminiService';
+import { generateEditedImage, generateHashtags, urlToBase64, enhancePrompt, getLastErrorDebugInfo } from './services/geminiService';
 import { saveSession, loadSession } from './services/storageService';
-import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp, ChevronRight } from 'lucide-react';
+import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, Stamp, ChevronRight, ChevronDown } from 'lucide-react';
 
 // Custom WhatsApp Icon Component for consistent branding
 const WhatsAppLogo: React.FC<{ size?: number; className?: string }> = ({ size = 24, className = "" }) => (
@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const [selectionModalOpen, setSelectionModalOpen] = useState(false);
   const [itemForSelection, setItemForSelection] = useState<CatalogItem | null>(null);
   const [selectionQuantities, setSelectionQuantities] = useState<Record<string, number>>({});
+  const [showDebugError, setShowDebugError] = useState(false);
 
   const [sliderPosition, setSliderPosition] = useState(50);
   
@@ -101,6 +102,11 @@ const App: React.FC = () => {
     loadInitialImage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.selectedPresetId, state.sourceType]);
+
+  // Reset debug view when error clears
+  useEffect(() => {
+    if (!state.error) setShowDebugError(false);
+  }, [state.error]);
 
   // Handlers
   const handleSourceChange = (type: ImageSourceType) => {
@@ -321,6 +327,7 @@ const App: React.FC = () => {
 
     setState(prev => ({ ...prev, isGenerating: true, error: null, generatedTags: [], statusMessage: null }));
     setSliderPosition(50);
+    setShowDebugError(false);
 
     try {
       const resultBase64 = await generateEditedImage(state.currentImage, finalPrompt, EditingAction.FREEFORM);
@@ -417,6 +424,7 @@ const App: React.FC = () => {
   
   const handleGenerateVariation = async (item: CatalogItem) => {
     setState(prev => ({ ...prev, generatingVariationId: item.id, error: null }));
+    setShowDebugError(false);
     try {
        // Use existing prompt or fallback
        const prompt = item.prompt && item.prompt.length > 5 
@@ -439,7 +447,7 @@ const App: React.FC = () => {
        triggerAutoSave();
     } catch (err: any) {
        console.error(err);
-       setState(prev => ({ ...prev, generatingVariationId: null, error: "Falha ao criar variação." }));
+       setState(prev => ({ ...prev, generatingVariationId: null, error: err.message || "Falha ao criar variação." }));
     }
   };
 
@@ -641,7 +649,8 @@ const App: React.FC = () => {
   // --- End Cart Logic ---
 
   const handleGenerateTags = async () => {
-    setState(prev => ({ ...prev, isGeneratingTags: true, statusMessage: null }));
+    setState(prev => ({ ...prev, isGeneratingTags: true, statusMessage: null, error: null }));
+    setShowDebugError(false);
     try {
       let context = constructCompositePrompt();
       if (state.sourceType === ImageSourceType.PRESET) {
@@ -651,9 +660,9 @@ const App: React.FC = () => {
       
       const tags = await generateHashtags(context);
       setState(prev => ({ ...prev, generatedTags: tags, isGeneratingTags: false }));
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setState(prev => ({ ...prev, isGeneratingTags: false }));
+      setState(prev => ({ ...prev, isGeneratingTags: false, error: err.message || "Erro ao gerar tags" }));
     }
   };
 
@@ -678,7 +687,9 @@ const App: React.FC = () => {
   };
 
   const handleExportHTML = () => {
-     // Prepare logo part
+     // ... (HTML export logic remains same)
+     // To brevity in this specific update, assuming logic exists as provided previously
+     // Just alerting that the button works if we didn't re-include the massive string template
      const logoHtml = state.logoUrl 
         ? `<img src="${state.logoUrl}" alt="Maria Rosa Logo" class="h-32 mx-auto mb-6 object-contain" />`
         : `<div class="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8 mx-auto">MR</div>`;
@@ -1417,9 +1428,24 @@ const App: React.FC = () => {
                     
                     {/* Status/Error Messages */}
                     {state.error && (
-                      <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm animate-pulse">
-                        <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                        <p>{state.error}</p>
+                      <div className="flex flex-col gap-2">
+                        <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm animate-pulse">
+                          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                          <p className="whitespace-pre-wrap">{state.error}</p>
+                        </div>
+                        <button 
+                           onClick={() => setShowDebugError(!showDebugError)}
+                           className="text-xs text-gray-500 underline text-right hover:text-gray-700"
+                        >
+                           {showDebugError ? 'Ocultar Detalhes Técnicos' : 'Ver Detalhes Técnicos'}
+                        </button>
+                        
+                        {showDebugError && (
+                          <div className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs font-mono overflow-x-auto max-h-60 border border-gray-800 shadow-inner">
+                            <h4 className="text-gray-500 mb-2 uppercase tracking-wider font-bold">Raw Error Output:</h4>
+                            <pre>{getLastErrorDebugInfo()}</pre>
+                          </div>
+                        )}
                       </div>
                     )}
                     {state.statusMessage && (
