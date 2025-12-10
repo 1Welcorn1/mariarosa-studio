@@ -8,12 +8,12 @@ export const PRODUCT_PRESETS: ProductPreset[] = [
   },
   {
     id: 'p2',
-    name: 'Casual White Summer Dress',
+    name: 'Vestido Branco Casual de Verão',
     url: 'https://images.unsplash.com/photo-1515347619252-60a6bf4fffce?q=80&w=1000&auto=format&fit=crop'
   },
   {
     id: 'p3',
-    name: 'Professional Black Blazer Suit',
+    name: 'Terno Blazer Preto Profissional',
     url: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=1000&auto=format&fit=crop'
   }
 ];
@@ -22,60 +22,60 @@ export const ACTION_OPTIONS = [
   { 
     value: EditingAction.BACKGROUND_SWAP, 
     label: 'Cenário (Background)', 
-    shortLabel: 'Background',
-    placeholder: 'e.g., luxury retail store, beach at sunset',
+    shortLabel: 'Cenário',
+    placeholder: 'ex: loja de luxo, praia no pôr do sol',
     promptTemplate: 'Change the background to {prompt}. Keep the person, lighting, and clothes exactly the same. High fidelity.' 
   },
   { 
     value: EditingAction.OUTFIT_SWAP, 
-    label: 'Look (Outfit)', 
-    shortLabel: 'Outfit',
-    placeholder: 'e.g., floral summer dress, red tuxedo',
+    label: 'Look (Roupa)', 
+    shortLabel: 'Look',
+    placeholder: 'ex: vestido floral de verão, smoking vermelho',
     promptTemplate: 'Change the outfit to {prompt}. Keep the person, pose, and background exactly the same.' 
   },
   { 
     value: EditingAction.POSE_SWAP, 
     label: 'Pose', 
     shortLabel: 'Pose',
-    placeholder: 'e.g., hands on hips, walking confidently',
+    placeholder: 'ex: mãos na cintura, caminhando confiante',
     promptTemplate: 'Change the person\'s pose to {prompt}. Maintain the exact facial features, hairstyle, and outfit details. Photorealistic.' 
   },
   { 
     value: EditingAction.SHOES_SWAP, 
-    label: 'Sapatos (Shoes)', 
-    shortLabel: 'Shoes',
-    placeholder: 'e.g., red stiletto heels, white sneakers',
+    label: 'Sapatos', 
+    shortLabel: 'Sapatos',
+    placeholder: 'ex: salto alto vermelho, tênis branco',
     promptTemplate: 'Replace the shoes with {prompt}. Keep the legs, skin tone, and outfit exactly the same.' 
   },
   { 
     value: EditingAction.BAG_SWAP, 
-    label: 'Bolsa (Bag)', 
-    shortLabel: 'Bag',
-    placeholder: 'e.g., beige leather tote bag',
+    label: 'Bolsa', 
+    shortLabel: 'Bolsa',
+    placeholder: 'ex: bolsa tote de couro bege',
     promptTemplate: 'Add or replace the handbag with {prompt}. Integrate it naturally with the outfit and lighting.' 
   },
   { 
     value: EditingAction.COLOR_CHANGE, 
-    label: 'Cor (Color)', 
-    shortLabel: 'Color',
-    placeholder: 'e.g., change the dress to navy blue',
+    label: 'Cor', 
+    shortLabel: 'Cor',
+    placeholder: 'ex: mudar o vestido para azul marinho',
     promptTemplate: 'Change the color of {prompt}. Keep the fabric texture, style, and background exactly the same.' 
   },
   { 
     value: EditingAction.FREEFORM, 
     label: 'Livre (Freeform)', 
-    shortLabel: 'Freeform',
-    placeholder: 'Describe any change you want...',
+    shortLabel: 'Livre',
+    placeholder: 'Descreva qualquer alteração que deseja...',
     promptTemplate: '{prompt}' 
   },
 ];
 
 export const DEFAULT_PROMPTS: Record<EditingAction, string> = {
-  [EditingAction.BACKGROUND_SWAP]: 'luxury retail store interior',
-  [EditingAction.OUTFIT_SWAP]: 'a floral summer dress',
-  [EditingAction.POSE_SWAP]: 'standing with crossed arms',
-  [EditingAction.SHOES_SWAP]: 'elegant high heels',
-  [EditingAction.BAG_SWAP]: 'a beige leather tote bag',
-  [EditingAction.COLOR_CHANGE]: 'the dress to navy blue',
-  [EditingAction.FREEFORM]: 'make it look like a magazine cover'
+  [EditingAction.BACKGROUND_SWAP]: 'interior de loja de luxo',
+  [EditingAction.OUTFIT_SWAP]: 'um vestido floral de verão',
+  [EditingAction.POSE_SWAP]: 'em pé com braços cruzados',
+  [EditingAction.SHOES_SWAP]: 'saltos altos elegantes',
+  [EditingAction.BAG_SWAP]: 'uma bolsa de couro bege',
+  [EditingAction.COLOR_CHANGE]: 'o vestido para azul marinho',
+  [EditingAction.FREEFORM]: 'faça parecer uma capa de revista'
 };

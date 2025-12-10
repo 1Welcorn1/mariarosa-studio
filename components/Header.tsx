@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catal
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Studio
+              Estúdio
             </button>
             <button 
               onClick={() => onViewChange('CATALOG')}
@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catal
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Catalog
+              Catálogo
               {catalogCount > 0 && (
                 <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full text-[10px]">
                   {catalogCount}
@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange, catal
             <button 
               onClick={onToggleCart}
               className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              title="Open Trolley"
+              title="Abrir Sacola"
             >
               <ShoppingBag size={22} />
               {cartCount > 0 && (

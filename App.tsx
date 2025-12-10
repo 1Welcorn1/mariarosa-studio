@@ -4,7 +4,7 @@ import { ImageSourceType, EditingAction, AppState, CatalogItem, CartItem, AppVie
 import { PRODUCT_PRESETS, ACTION_OPTIONS, DEFAULT_PROMPTS } from './constants';
 import { generateEditedImage, generateHashtags, urlToBase64, enhancePrompt } from './services/geminiService';
 import { saveSession, loadSession } from './services/storageService';
-import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp, Settings, Key } from 'lucide-react';
+import { Upload, Wand2, Download, AlertCircle, Image as ImageIcon, CheckCircle2, Sparkles, Hash, Copy, GripVertical, Save, FolderOpen, X, Plus, Trash2, ExternalLink, Calendar, Printer, BookOpen, PenLine, DollarSign, FileCode, ShoppingBag, MessageCircle, Phone, Minus, Layers, RefreshCw, Cloud, stamp, Stamp, ChevronRight } from 'lucide-react';
 
 // Custom WhatsApp Icon Component for consistent branding
 const WhatsAppLogo: React.FC<{ size?: number; className?: string }> = ({ size = 24, className = "" }) => (
@@ -49,9 +49,12 @@ const App: React.FC = () => {
     logoUrl: null
   });
 
+  // UI State for Variation Selection Modal
+  const [selectionModalOpen, setSelectionModalOpen] = useState(false);
+  const [itemForSelection, setItemForSelection] = useState<CatalogItem | null>(null);
+  const [selectionQuantities, setSelectionQuantities] = useState<Record<string, number>>({});
+
   const [sliderPosition, setSliderPosition] = useState(50);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('GEMINI_API_KEY') || '');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const catalogFileInputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +93,7 @@ const App: React.FC = () => {
             setState(prev => ({ ...prev, currentImage: base64, generatedImage: null, error: null, generatedTags: [] }));
           } catch (err) {
             console.error("Failed to load preset image", err);
-            setState(prev => ({ ...prev, error: "Failed to load preset image." }));
+            setState(prev => ({ ...prev, error: "Falha ao carregar imagem predefinida." }));
           }
         }
       }
@@ -100,12 +103,6 @@ const App: React.FC = () => {
   }, [state.selectedPresetId, state.sourceType]);
 
   // Handlers
-  const handleSaveApiKey = () => {
-    localStorage.setItem('GEMINI_API_KEY', apiKey);
-    setIsSettingsOpen(false);
-    setState(prev => ({...prev, statusMessage: "API Key Saved"}));
-  };
-
   const handleSourceChange = (type: ImageSourceType) => {
     setState(prev => ({
       ...prev,
@@ -128,7 +125,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setState(prev => ({ ...prev, error: "Image size too large. Max 5MB.", statusMessage: null }));
+        setState(prev => ({ ...prev, error: "Imagem muito grande. Max 5MB.", statusMessage: null }));
         return;
       }
       const reader = new FileReader();
@@ -153,7 +150,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        setState(prev => ({ ...prev, error: "Logo size too large. Max 2MB.", statusMessage: null }));
+        setState(prev => ({ ...prev, error: "Logo muito grande. Max 2MB.", statusMessage: null }));
         return;
       }
       const reader = new FileReader();
@@ -162,7 +159,7 @@ const App: React.FC = () => {
         setState(prev => ({
           ...prev,
           logoUrl: result,
-          statusMessage: "Logo updated!",
+          statusMessage: "Logo atualizado!",
           error: null
         }));
         triggerAutoSave();
@@ -176,7 +173,7 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setState(prev => ({ ...prev, error: "Image size too large. Max 5MB.", statusMessage: null }));
+        setState(prev => ({ ...prev, error: "Imagem muito grande. Max 5MB.", statusMessage: null }));
         return;
       }
       const reader = new FileReader();
@@ -186,11 +183,11 @@ const App: React.FC = () => {
         const newItem: CatalogItem = {
           id: Date.now().toString(),
           imageUrl: result,
-          prompt: "Uploaded from local",
+          prompt: "Carregado localmente",
           actions: [],
           timestamp: Date.now(),
           tags: [],
-          name: "New Product",
+          name: "Novo Produto",
           description: "",
           price: "",
           variations: []
@@ -199,7 +196,7 @@ const App: React.FC = () => {
         setState(prev => ({
           ...prev,
           catalog: [newItem, ...prev.catalog],
-          statusMessage: "Product added to Catalog!",
+          statusMessage: "Produto adicionado ao Catálogo!",
           error: null
         }));
         
@@ -294,10 +291,6 @@ const App: React.FC = () => {
   };
 
   const handleEnhancePrompt = async (action: string) => {
-    if (!apiKey) {
-      setIsSettingsOpen(true);
-      return;
-    }
     const currentInput = state.promptInputs[action];
     if (!currentInput) return;
     
@@ -318,15 +311,11 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!apiKey) {
-      setIsSettingsOpen(true);
-      return;
-    }
     if (!state.currentImage) return;
     
     const finalPrompt = constructCompositePrompt();
     if (!finalPrompt) {
-      setState(prev => ({ ...prev, error: "Please enter a description for your edits." }));
+      setState(prev => ({ ...prev, error: "Por favor, descreva as edições desejadas." }));
       return;
     }
 
@@ -340,7 +329,7 @@ const App: React.FC = () => {
       setState(prev => ({ 
         ...prev, 
         isGenerating: false, 
-        error: err.message || "Failed to generate image. Please try again." 
+        error: err.message || "Falha ao gerar imagem. Tente novamente." 
       }));
     }
   };
@@ -371,7 +360,7 @@ const App: React.FC = () => {
       actions: [...state.activeActions],
       timestamp: Date.now(),
       tags: state.generatedTags,
-      name: "New Collection Item",
+      name: "Novo Item da Coleção",
       description: "",
       price: "",
       variations: []
@@ -380,7 +369,7 @@ const App: React.FC = () => {
     setState(prev => ({
       ...prev,
       catalog: [newItem, ...prev.catalog],
-      statusMessage: "Added to Catalog!",
+      statusMessage: "Adicionado ao Catálogo!",
     }));
     
     triggerAutoSave();
@@ -392,9 +381,13 @@ const App: React.FC = () => {
       catalog: prev.catalog.map(item => 
         item.id === id ? { ...item, [field]: value } : item
       ),
-      cart: prev.cart.map(item => 
-        item.id === id ? { ...item, [field]: value } : item
-      ) // Also update cart if item exists there
+      cart: prev.cart.map(item => {
+        // Update cart items that are derived from this catalog item (original or variations)
+        if (item.id.startsWith(id)) {
+          return { ...item, [field]: value };
+        }
+        return item;
+      })
     }));
   };
 
@@ -402,7 +395,8 @@ const App: React.FC = () => {
     setState(prev => ({
       ...prev,
       catalog: prev.catalog.filter(item => item.id !== id),
-      cart: prev.cart.filter(item => item.id !== id) // Remove from cart as well
+      // Remove all cart items that are derived from this catalog item
+      cart: prev.cart.filter(item => !item.id.startsWith(id))
     }));
     triggerAutoSave();
   };
@@ -415,17 +409,13 @@ const App: React.FC = () => {
       sourceType: ImageSourceType.UPLOAD,
       generatedImage: null,
       currentView: 'STUDIO',
-      statusMessage: "Image loaded from Catalog"
+      statusMessage: "Imagem carregada do Catálogo"
     }));
   };
 
   // --- Variations Logic ---
   
   const handleGenerateVariation = async (item: CatalogItem) => {
-    if (!apiKey) {
-      setIsSettingsOpen(true);
-      return;
-    }
     setState(prev => ({ ...prev, generatingVariationId: item.id, error: null }));
     try {
        // Use existing prompt or fallback
@@ -444,12 +434,12 @@ const App: React.FC = () => {
              ? { ...catItem, variations: [newImage, ...(catItem.variations || [])] }
              : catItem
          ),
-         statusMessage: "Variation created!"
+         statusMessage: "Variação criada!"
        }));
        triggerAutoSave();
     } catch (err: any) {
        console.error(err);
-       setState(prev => ({ ...prev, generatingVariationId: null, error: "Failed to create variation." }));
+       setState(prev => ({ ...prev, generatingVariationId: null, error: "Falha ao criar variação." }));
     }
   };
 
@@ -491,19 +481,93 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, isCartOpen: !prev.isCartOpen }));
   };
 
-  const addToCart = (item: CatalogItem) => {
-    const existingIndex = state.cart.findIndex(c => c.id === item.id);
-    
-    if (existingIndex >= 0) {
-       // Item exists, increment quantity
-       const newCart = [...state.cart];
-       newCart[existingIndex] = { ...newCart[existingIndex], quantity: (newCart[existingIndex].quantity || 1) + 1 };
-       setState(prev => ({ ...prev, cart: newCart, statusMessage: "Quantity updated in trolley!", isCartOpen: true }));
-    } else {
-       // Add new with quantity 1
-       const cartItem: CartItem = { ...item, quantity: 1 };
-       setState(prev => ({ ...prev, cart: [...prev.cart, cartItem], statusMessage: "Added to trolley!", isCartOpen: true }));
+  // Open the selection modal
+  const openCartSelectionModal = (item: CatalogItem) => {
+    setItemForSelection(item);
+    setSelectionQuantities({}); // Reset quantities
+    setSelectionModalOpen(true);
+  };
+
+  const updateSelectionQuantity = (key: string, delta: number) => {
+    setSelectionQuantities(prev => ({
+      ...prev,
+      [key]: Math.max(0, (prev[key] || 0) + delta)
+    }));
+  };
+
+  const handleConfirmAddToCart = () => {
+    if (!itemForSelection) return;
+
+    const newCartItems: CartItem[] = [];
+    let totalAdded = 0;
+
+    // 1. Check Main Item
+    const mainQty = selectionQuantities['main'] || 0;
+    if (mainQty > 0) {
+      // Create a unique ID for the main item within the cart context
+      // We append -main to distinguish from future potential collisions if we need strict ID uniqueness
+      const cartId = `${itemForSelection.id}-main`;
+      
+      const mainItem: CartItem = {
+        ...itemForSelection,
+        id: cartId,
+        name: `${itemForSelection.name} (Original)`,
+        quantity: mainQty
+      };
+      newCartItems.push(mainItem);
+      totalAdded += mainQty;
     }
+
+    // 2. Check Variations
+    if (itemForSelection.variations) {
+      itemForSelection.variations.forEach((varUrl, index) => {
+        const qty = selectionQuantities[index.toString()] || 0;
+        if (qty > 0) {
+          const cartId = `${itemForSelection.id}-var-${index}`;
+          const varItem: CartItem = {
+            ...itemForSelection,
+            id: cartId,
+            imageUrl: varUrl,
+            name: `${itemForSelection.name} (Variação ${index + 1})`,
+            quantity: qty
+          };
+          newCartItems.push(varItem);
+          totalAdded += qty;
+        }
+      });
+    }
+
+    if (totalAdded === 0) {
+      setSelectionModalOpen(false);
+      return;
+    }
+
+    // Merge into existing cart
+    setState(prev => {
+      const updatedCart = [...prev.cart];
+
+      newCartItems.forEach(newItem => {
+        const existingIndex = updatedCart.findIndex(c => c.id === newItem.id);
+        if (existingIndex >= 0) {
+          updatedCart[existingIndex] = {
+            ...updatedCart[existingIndex],
+            quantity: (updatedCart[existingIndex].quantity || 0) + newItem.quantity
+          };
+        } else {
+          updatedCart.push(newItem);
+        }
+      });
+
+      return {
+        ...prev,
+        cart: updatedCart,
+        isCartOpen: true,
+        statusMessage: `Adicionado ${totalAdded} itens à sacola!`
+      };
+    });
+
+    setSelectionModalOpen(false);
+    setItemForSelection(null);
     triggerAutoSave();
   };
 
@@ -543,20 +607,20 @@ const App: React.FC = () => {
     if (state.cart.length === 0) return;
     
     if (!state.phoneNumber) {
-      alert("Please configure a WhatsApp number in the Workstation or Lookbook view first.");
+      alert("Por favor configure o número de WhatsApp na Área de Trabalho ou Lookbook.");
       return;
     }
 
     const itemsList = state.cart.map((item, index) => {
       const qty = item.quantity || 1;
       // Using simple asterisks for bolding in WhatsApp
-      return `*${index + 1}. ${qty}x ${item.name || "Item"}*\n   Ref: ${item.id.slice(-4)}\n   ${item.price ? `Price: ${item.price}` : "Price: TBD"}`;
+      return `*${index + 1}. ${qty}x ${item.name || "Item"}*\n   Ref: ${item.id}\n   ${item.price ? `Preço: ${item.price}` : "Preço: A Combinar"}`;
     }).join('\n\n');
     
     const total = calculateTotal();
-    const totalDisplay = total > 0 ? `\n\n*Estimated Total: ${total.toFixed(2)}*` : "";
+    const totalDisplay = total > 0 ? `\n\n*Total Estimado: ${total.toFixed(2)}*` : "";
 
-    const message = `*NEW ORDER INQUIRY*\nHello ${state.curatorName}, I am interested in the following items from your lookbook:\n\n${itemsList}${totalDisplay}\n\nLet's discuss sizing and delivery details!`;
+    const message = `*NOVO PEDIDO*\nOlá ${state.curatorName}, tenho interesse nos seguintes itens do seu catálogo:\n\n${itemsList}${totalDisplay}\n\nPodemos falar sobre tamanhos e entrega?`;
     
     const whatsappUrl = `https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
@@ -564,11 +628,11 @@ const App: React.FC = () => {
 
   const handleItemInquiry = (item: CatalogItem) => {
     if (!state.phoneNumber) {
-      alert("Please configure a WhatsApp number in the Lookbook view first.");
+      alert("Por favor configure o número de WhatsApp primeiro.");
       return;
     }
 
-    const message = `*PRODUCT INQUIRY*\n\nHello, I am looking at the *${item.name || "Presentation Item"}*.\nRef Code: ${item.id.slice(-6)}\nPrice: ${item.price || "On Request"}\n\nI would like more information about this specific piece.`;
+    const message = `*CONSULTA DE PRODUTO*\n\nOlá, estou vendo o item *${item.name || "Sem Nome"}*.\nRef: ${item.id.slice(-6)}\nPreço: ${item.price || "Sob Consulta"}\n\nGostaria de mais informações sobre esta peça.`;
     
     const whatsappUrl = `https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
@@ -577,10 +641,6 @@ const App: React.FC = () => {
   // --- End Cart Logic ---
 
   const handleGenerateTags = async () => {
-    if (!apiKey) {
-      setIsSettingsOpen(true);
-      return;
-    }
     setState(prev => ({ ...prev, isGeneratingTags: true, statusMessage: null }));
     try {
       let context = constructCompositePrompt();
@@ -600,7 +660,7 @@ const App: React.FC = () => {
   const copyTags = () => {
     if (state.generatedTags.length > 0) {
       navigator.clipboard.writeText(state.generatedTags.join(' '));
-      setState(prev => ({...prev, statusMessage: "Tags copied to clipboard!"}));
+      setState(prev => ({...prev, statusMessage: "Tags copiadas!"}));
     }
   };
 
@@ -625,11 +685,11 @@ const App: React.FC = () => {
 
      const htmlContent = `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maria Rosa Lookbook - ${new Date().toLocaleDateString()}</title>
+    <title>Lookbook Maria Rosa - ${new Date().toLocaleDateString()}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -647,7 +707,7 @@ const App: React.FC = () => {
         <div class="p-16 flex flex-col items-center justify-center min-h-[80vh] text-center border-b border-gray-100 page-break">
             ${logoHtml}
             <h1 class="text-6xl text-gray-900 mb-4 tracking-tight">MARIA ROSA</h1>
-            <p class="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Collection 2025</p>
+            <p class="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Coleção 2025</p>
             <div class="w-16 h-1 bg-gray-900 mb-8"></div>
             <p class="text-sm text-gray-400 mt-2">${new Date().toLocaleDateString()}</p>
         </div>
@@ -655,16 +715,16 @@ const App: React.FC = () => {
             ${state.catalog.map((item, index) => `
                 <div class="flex flex-col ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} gap-12 items-center page-break-inside-avoid mb-16">
                     <div class="w-full md:w-1/2 aspect-[3/4] bg-gray-100">
-                        <img src="${item.imageUrl}" class="w-full h-full object-cover shadow-sm" alt="${item.name || 'Product'}">
+                        <img src="${item.imageUrl}" class="w-full h-full object-cover shadow-sm" alt="${item.name || 'Produto'}">
                     </div>
                     <div class="w-full md:w-1/2 text-left space-y-6">
                         <div>
-                            <h3 class="text-3xl text-gray-900 mb-2">${item.name || "Untitled Product"}</h3>
-                            <p class="text-2xl font-light text-gray-500">${item.price ? `$${item.price}` : "Price upon request"}</p>
+                            <h3 class="text-3xl text-gray-900 mb-2">${item.name || "Produto Sem Nome"}</h3>
+                            <p class="text-2xl font-light text-gray-500">${item.price ? `$${item.price}` : "Preço sob consulta"}</p>
                         </div>
                         <div class="w-12 h-px bg-gray-300"></div>
                         <p class="text-gray-600 leading-relaxed font-light text-lg">
-                            ${item.description || "No description provided for this exclusive piece."}
+                            ${item.description || "Sem descrição disponível para esta peça exclusiva."}
                         </p>
                         ${item.variations && item.variations.length > 0 ? `
                            <div class="pt-4 grid grid-cols-4 gap-2">
@@ -681,8 +741,8 @@ const App: React.FC = () => {
                         </div>
                         ` : ''}
                         <div class="pt-6 no-print">
-                            <a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`I am interested in ${item.name}`)}" class="inline-flex items-center gap-2 text-green-600 font-bold border border-green-200 px-4 py-2 rounded-full hover:bg-green-50 transition-colors">
-                                <span>Negotiate via WhatsApp</span>
+                            <a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Tenho interesse em ${item.name}`)}" class="inline-flex items-center gap-2 text-green-600 font-bold border border-green-200 px-4 py-2 rounded-full hover:bg-green-50 transition-colors">
+                                <span>Negociar no WhatsApp</span>
                             </a>
                         </div>
                     </div>
@@ -693,7 +753,7 @@ const App: React.FC = () => {
             ${logoHtml}
             <p class="text-gray-500 text-sm">mariarosa.style</p>
             <p class="text-gray-500 text-sm">mariarosasuamoda@gmail.com</p>
-            ${state.phoneNumber ? `<a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}" class="inline-block mt-4 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold no-print">Contact via WhatsApp</a>` : ''}
+            ${state.phoneNumber ? `<a href="https://wa.me/${state.phoneNumber.replace(/[^0-9]/g, '')}" class="inline-block mt-4 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-bold no-print">Contato via WhatsApp</a>` : ''}
         </div>
     </div>
 </body>
@@ -712,7 +772,7 @@ const App: React.FC = () => {
 
   // --- Session Management ---
   const handleSaveSession = async (silent = false) => {
-    if (!silent) setState(prev => ({ ...prev, statusMessage: "Saving to cloud..." }));
+    if (!silent) setState(prev => ({ ...prev, statusMessage: "Salvando na nuvem..." }));
     
     const result = await saveSession(state);
     
@@ -724,7 +784,7 @@ const App: React.FC = () => {
   };
 
   const handleLoadSession = async () => {
-    setState(prev => ({ ...prev, statusMessage: "Loading from cloud..." }));
+    setState(prev => ({ ...prev, statusMessage: "Carregando da nuvem..." }));
     const result = await loadSession();
     
     if (result.success && result.data) {
@@ -754,49 +814,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col relative overflow-x-hidden">
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Settings className="text-purple-600" />
-                Settings
-              </h3>
-              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
-                <div className="relative">
-                  <Key className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                  <input 
-                    type="password" 
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Paste your API key here..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Your key is stored locally in your browser and used only to contact Google's servers.
-                </p>
-              </div>
-              
-              <button 
-                onClick={handleSaveApiKey}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-              >
-                Save Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Print Styles */}
       <style>{`
         @media print {
@@ -812,7 +829,7 @@ const App: React.FC = () => {
         <div className="p-4 bg-gray-900 text-white flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
             <ShoppingBag size={20} />
-            <h2 className="font-bold text-lg">My Trolley ({state.cart.length})</h2>
+            <h2 className="font-bold text-lg">Minha Sacola ({state.cart.length})</h2>
           </div>
           <button onClick={toggleCart} className="text-gray-400 hover:text-white transition-colors">
             <X size={24} />
@@ -823,8 +840,8 @@ const App: React.FC = () => {
           {state.cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
                <ShoppingBag size={48} className="mb-4 opacity-20" />
-               <p>Your trolley is empty.</p>
-               <button onClick={toggleCart} className="mt-4 text-purple-600 font-medium hover:underline">Continue browsing</button>
+               <p>Sua sacola está vazia.</p>
+               <button onClick={toggleCart} className="mt-4 text-purple-600 font-medium hover:underline">Continuar navegando</button>
             </div>
           ) : (
             state.cart.map(item => (
@@ -832,8 +849,8 @@ const App: React.FC = () => {
                 <img src={item.imageUrl} alt={item.name} className="w-20 h-20 object-cover rounded-md bg-white shadow-sm" />
                 <div className="flex-grow flex flex-col justify-between py-1">
                   <div>
-                    <h4 className="font-semibold text-gray-900 text-sm line-clamp-1 pr-6">{item.name || "Untitled Product"}</h4>
-                    <p className="text-xs text-purple-600 font-bold">{item.price || "Price TBD"}</p>
+                    <h4 className="font-semibold text-gray-900 text-sm line-clamp-1 pr-6">{item.name || "Produto Sem Nome"}</h4>
+                    <p className="text-xs text-purple-600 font-bold">{item.price || "Preço A Combinar"}</p>
                   </div>
                   
                   {/* Quantity Controls */}
@@ -853,14 +870,14 @@ const App: React.FC = () => {
                         <Plus size={14}/>
                       </button>
                     </div>
-                    <span className="text-[10px] text-gray-400 uppercase tracking-wide">Qty</span>
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wide">Qtd</span>
                   </div>
                 </div>
                 
                 <button 
                   onClick={() => removeFromCart(item.id)}
                   className="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors"
-                  title="Remove Item"
+                  title="Remover Item"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -871,7 +888,7 @@ const App: React.FC = () => {
 
         <div className="p-6 bg-gray-50 border-t border-gray-200">
           <div className="flex justify-between items-center mb-4">
-             <span className="text-gray-600 font-medium">Estimated Total</span>
+             <span className="text-gray-600 font-medium">Total Estimado</span>
              <span className="text-2xl font-bold text-gray-900">{calculateTotal() > 0 ? calculateTotal().toFixed(2) : '--'}</span>
           </div>
           <button 
@@ -883,11 +900,11 @@ const App: React.FC = () => {
                 : 'bg-green-500 hover:bg-green-600 shadow-green-200'}`}
           >
             <WhatsAppLogo size={20} />
-            Negotiate on WhatsApp
+            Negociar no WhatsApp
           </button>
           {!state.phoneNumber && state.cart.length > 0 && (
             <p className="text-xs text-red-500 text-center mt-2">
-              * Configure phone number in Workstation toolbar
+              * Configure o WhatsApp na barra superior
             </p>
           )}
         </div>
@@ -899,6 +916,98 @@ const App: React.FC = () => {
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[55]"
           onClick={toggleCart}
         ></div>
+      )}
+
+      {/* Variation Selection Modal */}
+      {selectionModalOpen && itemForSelection && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn">
+            {/* Header */}
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Selecionar Opções</h3>
+                <p className="text-sm text-gray-500">Escolha as quantidades para o original e variações.</p>
+              </div>
+              <button 
+                onClick={() => setSelectionModalOpen(false)}
+                className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-grow overflow-y-auto p-5 space-y-4">
+              
+              {/* Main Item */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                 <img src={itemForSelection.imageUrl} alt="Original" className="w-16 h-16 object-cover rounded-lg shadow-sm" />
+                 <div className="flex-grow">
+                   <h4 className="font-bold text-gray-900">Look Original</h4>
+                   <p className="text-xs text-gray-500">O design principal.</p>
+                 </div>
+                 <div className="flex items-center bg-white rounded-lg border border-gray-300 shadow-sm">
+                    <button 
+                      onClick={() => updateSelectionQuantity('main', -1)} 
+                      className="p-2 hover:bg-gray-100 text-gray-600 rounded-l-lg"
+                    >
+                      <Minus size={16}/>
+                    </button>
+                    <span className="w-10 text-center font-bold text-gray-900">{selectionQuantities['main'] || 0}</span>
+                    <button 
+                      onClick={() => updateSelectionQuantity('main', 1)} 
+                      className="p-2 hover:bg-gray-100 text-gray-600 rounded-r-lg"
+                    >
+                      <Plus size={16}/>
+                    </button>
+                 </div>
+              </div>
+
+              {/* Variations */}
+              {itemForSelection.variations && itemForSelection.variations.map((varUrl, idx) => (
+                <div key={idx} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                   <img src={varUrl} alt={`Variação ${idx + 1}`} className="w-16 h-16 object-cover rounded-lg shadow-sm" />
+                   <div className="flex-grow">
+                     <h4 className="font-bold text-gray-900">Variação {idx + 1}</h4>
+                     <p className="text-xs text-gray-500">Variante gerada por IA.</p>
+                   </div>
+                   <div className="flex items-center bg-white rounded-lg border border-gray-300 shadow-sm">
+                      <button 
+                        onClick={() => updateSelectionQuantity(idx.toString(), -1)} 
+                        className="p-2 hover:bg-gray-100 text-gray-600 rounded-l-lg"
+                      >
+                        <Minus size={16}/>
+                      </button>
+                      <span className="w-10 text-center font-bold text-gray-900">{selectionQuantities[idx.toString()] || 0}</span>
+                      <button 
+                        onClick={() => updateSelectionQuantity(idx.toString(), 1)} 
+                        className="p-2 hover:bg-gray-100 text-gray-600 rounded-r-lg"
+                      >
+                        <Plus size={16}/>
+                      </button>
+                   </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+               <button 
+                 onClick={() => setSelectionModalOpen(false)}
+                 className="px-5 py-2.5 rounded-lg text-gray-700 font-medium hover:bg-gray-200 transition-colors"
+               >
+                 Cancelar
+               </button>
+               <button 
+                 onClick={handleConfirmAddToCart}
+                 className="px-5 py-2.5 rounded-lg bg-black text-white font-bold hover:bg-gray-800 transition-colors shadow-lg flex items-center gap-2"
+               >
+                 <ShoppingBag size={18} />
+                 Adicionar à Sacola
+               </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Header 
@@ -916,8 +1025,8 @@ const App: React.FC = () => {
           <div className="space-y-8 animate-fadeIn">
             <div className="flex justify-between items-center">
               <div>
-                 <h2 className="text-3xl font-bold text-gray-900">Campaign Catalog</h2>
-                 <p className="text-gray-500 mt-1">Manage details and organize your collection.</p>
+                 <h2 className="text-3xl font-bold text-gray-900">Catálogo da Coleção</h2>
+                 <p className="text-gray-500 mt-1">Gerencie detalhes e organize sua coleção.</p>
               </div>
               <div className="flex gap-2">
                  {/* Add Product Button */}
@@ -926,7 +1035,7 @@ const App: React.FC = () => {
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm"
                 >
                   <Plus size={18} />
-                  Add Product
+                  Adicionar Produto
                 </button>
                 <input 
                   type="file" 
@@ -941,13 +1050,13 @@ const App: React.FC = () => {
                   className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
                 >
                   <BookOpen size={18} />
-                  View Lookbook
+                  Ver Lookbook
                 </button>
                 <button 
                   onClick={() => handleViewChange('STUDIO')}
                   className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
                 >
-                  Back to Studio
+                  Voltar ao Estúdio
                 </button>
               </div>
             </div>
@@ -957,21 +1066,21 @@ const App: React.FC = () => {
                   <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                     <FolderOpen className="text-gray-400" size={32} />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900">Your catalog is empty</h3>
-                  <p className="text-gray-500 max-w-md mx-auto mt-2 mb-6">Create stunning designs in the studio or upload your own products to build your campaign.</p>
+                  <h3 className="text-lg font-medium text-gray-900">Seu catálogo está vazio</h3>
+                  <p className="text-gray-500 max-w-md mx-auto mt-2 mb-6">Crie designs incríveis no estúdio ou carregue seus próprios produtos.</p>
                   <div className="flex justify-center gap-4">
                     <button 
                       onClick={() => handleViewChange('STUDIO')}
                       className="text-purple-600 font-semibold hover:text-purple-800"
                     >
-                      Go to Studio &rarr;
+                      Ir para Estúdio &rarr;
                     </button>
                     <span className="text-gray-300">|</span>
                     <button 
                       onClick={() => catalogFileInputRef.current?.click()}
                       className="text-purple-600 font-semibold hover:text-purple-800"
                     >
-                      Upload Product &rarr;
+                      Carregar Produto &rarr;
                     </button>
                   </div>
                </div>
@@ -980,15 +1089,15 @@ const App: React.FC = () => {
                 {state.catalog.map((item) => (
                   <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 group hover:shadow-lg transition-all duration-300">
                     <div className="relative aspect-[3/4] bg-gray-100 overflow-hidden group">
-                      <img src={item.imageUrl} alt="Catalog Item" className="w-full h-full object-cover" />
+                      <img src={item.imageUrl} alt="Item do Catálogo" className="w-full h-full object-cover" />
                       
                       {/* ADD TO BAG - Always visible on mobile, hover on desktop */}
                       <button 
-                          onClick={() => addToCart(item)}
+                          onClick={() => openCartSelectionModal(item)}
                           className="absolute bottom-4 right-4 bg-black text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 hover:bg-gray-800 hover:scale-105 transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 z-10"
                       >
                          <ShoppingBag size={16} />
-                         Add to Bag
+                         Adicionar à Sacola
                       </button>
 
                       {/* Overlay Controls */}
@@ -996,21 +1105,21 @@ const App: React.FC = () => {
                          <button 
                           onClick={() => handleLoadFromCatalog(item)}
                           className="bg-white/90 text-gray-900 p-2 rounded-full hover:bg-white shadow-sm backdrop-blur-sm"
-                          title="Edit in Studio"
+                          title="Editar no Estúdio"
                         >
                           <Wand2 size={16} />
                         </button>
                         <button 
-                          onClick={() => downloadImage(item.imageUrl, `catalog-${item.id}.png`)}
+                          onClick={() => downloadImage(item.imageUrl, `catalogo-${item.id}.png`)}
                           className="bg-white/90 text-gray-900 p-2 rounded-full hover:bg-white shadow-sm backdrop-blur-sm"
-                          title="Download"
+                          title="Baixar"
                         >
                           <Download size={16} />
                         </button>
                         <button 
                           onClick={() => handleRemoveFromCatalog(item.id)}
                           className="bg-red-500/90 text-white p-2 rounded-full hover:bg-red-600 shadow-sm backdrop-blur-sm"
-                          title="Delete"
+                          title="Excluir"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -1025,7 +1134,7 @@ const App: React.FC = () => {
                          disabled={state.generatingVariationId === item.id}
                          className={`w-12 h-12 flex-shrink-0 border-2 border-dashed border-purple-300 rounded-md flex items-center justify-center text-purple-600 hover:bg-purple-50 hover:border-purple-500 transition-colors
                            ${state.generatingVariationId === item.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                         title="Create AI Variation"
+                         title="Criar Variação com IA"
                        >
                          {state.generatingVariationId === item.id ? (
                            <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1039,7 +1148,7 @@ const App: React.FC = () => {
                          <div key={idx} className="w-12 h-12 flex-shrink-0 relative group">
                             <img 
                               src={vUrl} 
-                              alt={`Variation ${idx}`} 
+                              alt={`Variação ${idx}`} 
                               className="w-full h-full object-cover rounded-md border border-gray-200 cursor-pointer"
                               onClick={() => handleSwapVariation(item.id, idx)}
                             />
@@ -1063,7 +1172,7 @@ const App: React.FC = () => {
                               type="text" 
                               value={item.name}
                               onChange={(e) => handleUpdateCatalogItem(item.id, 'name', e.target.value)}
-                              placeholder="Product Name"
+                              placeholder="Nome do Produto"
                               className="w-full text-base font-semibold text-gray-900 border-none p-0 focus:ring-0 placeholder:text-gray-300"
                             />
                          </div>
@@ -1084,7 +1193,7 @@ const App: React.FC = () => {
                          <textarea 
                             value={item.description}
                             onChange={(e) => handleUpdateCatalogItem(item.id, 'description', e.target.value)}
-                            placeholder="Add a marketing description..."
+                            placeholder="Adicione uma descrição..."
                             className="w-full text-sm text-gray-600 border border-gray-100 rounded-md p-2 focus:border-purple-500 focus:ring-purple-500 min-h-[80px] resize-none bg-gray-50"
                          />
                       </div>
@@ -1099,11 +1208,11 @@ const App: React.FC = () => {
 
                       {/* Add to Cart Button */}
                       <button 
-                        onClick={() => addToCart(item)}
+                        onClick={() => openCartSelectionModal(item)}
                         className="w-full mt-2 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 shadow-sm"
                       >
                         <ShoppingBag size={16} />
-                        Add to Cart
+                        Adicionar à Sacola
                       </button>
 
                     </div>
@@ -1118,8 +1227,8 @@ const App: React.FC = () => {
             {/* Action Bar (Hidden when printing) */}
             <div className="flex justify-between items-center mb-8 bg-gray-900 text-white p-4 rounded-xl shadow-lg no-print">
               <div>
-                 <h2 className="text-xl font-bold">Presentation Mode</h2>
-                 <p className="text-gray-400 text-sm">Review your lookbook before printing.</p>
+                 <h2 className="text-xl font-bold">Modo Apresentação</h2>
+                 <p className="text-gray-400 text-sm">Revise seu lookbook antes de imprimir.</p>
               </div>
               <div className="flex gap-3">
                  <button 
@@ -1127,20 +1236,20 @@ const App: React.FC = () => {
                   className="bg-white text-gray-900 px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors flex items-center gap-2"
                 >
                   <Printer size={18} />
-                  Print / PDF
+                  Imprimir / PDF
                 </button>
                  <button 
                   onClick={handleExportHTML}
                   className="bg-white text-gray-900 px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors flex items-center gap-2"
                 >
                   <FileCode size={18} />
-                  Export HTML
+                  Exportar HTML
                 </button>
                 <button 
                   onClick={() => handleViewChange('CATALOG')}
                   className="bg-transparent border border-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
                 >
-                  Close
+                  Fechar
                 </button>
               </div>
             </div>
@@ -1156,7 +1265,7 @@ const App: React.FC = () => {
                    <div className="w-24 h-24 bg-black text-white rounded-full flex items-center justify-center text-2xl font-bold mb-8">MR</div>
                  )}
                  <h1 className="text-6xl font-serif text-gray-900 mb-4 tracking-tight">MARIA ROSA</h1>
-                 <p className="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Collection 2025</p>
+                 <p className="text-2xl text-gray-400 font-light uppercase tracking-[0.2em] mb-12">Coleção 2025</p>
                  <div className="w-16 h-1 bg-gray-900 mb-8"></div>
                  
                  {/* Settings: WhatsApp Number */}
@@ -1183,14 +1292,14 @@ const App: React.FC = () => {
                        </div>
                        <div className="w-full md:w-1/2 text-left space-y-6">
                           <div>
-                             <h3 className="text-3xl font-serif text-gray-900 mb-2">{item.name || "Untitled Product"}</h3>
-                             <p className="text-2xl font-light text-gray-500">{item.price ? `$${item.price}` : "Price upon request"}</p>
+                             <h3 className="text-3xl font-serif text-gray-900 mb-2">{item.name || "Produto Sem Nome"}</h3>
+                             <p className="text-2xl font-light text-gray-500">{item.price ? `$${item.price}` : "Preço sob consulta"}</p>
                           </div>
                           
                           <div className="w-12 h-px bg-gray-300"></div>
                           
                           <p className="text-gray-600 leading-relaxed font-light text-lg">
-                             {item.description || "No description provided for this exclusive piece. Contact our sales team for more details on sizing and availability."}
+                             {item.description || "Sem descrição disponível para esta peça exclusiva. Entre em contato para detalhes."}
                           </p>
 
                           {item.variations && item.variations.length > 0 && (
@@ -1215,7 +1324,7 @@ const App: React.FC = () => {
                              className="no-print mt-4 inline-flex items-center gap-2 text-green-600 font-bold border border-green-200 px-4 py-2 rounded-full hover:bg-green-50 transition-colors text-sm"
                           >
                              <WhatsAppLogo size={16} />
-                             Ask about this piece
+                             Consultar sobre esta peça
                           </button>
                        </div>
                     </div>
@@ -1240,10 +1349,10 @@ const App: React.FC = () => {
             {/* Landing Hero Section */}
             <div className="mb-10 text-center animate-fadeIn">
               <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
-                Transform Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">Fashion Photos</span> with AI
+                Transforme Suas <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">Fotos de Moda</span> com IA
               </h1>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Combine multiple edits like background swaps, outfit changes, and new accessories in a single click.
+                Combine edições como troca de cenário, mudança de look e novos acessórios com um clique.
               </p>
             </div>
 
@@ -1255,10 +1364,10 @@ const App: React.FC = () => {
                   
                   {/* Toolbar */}
                   <div className="bg-gray-50 border-b border-gray-100 px-6 py-3 flex justify-between items-center">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Workstation</span>
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Área de Trabalho</span>
                     <div className="flex gap-2 items-center">
                        {/* WhatsApp Input */}
-                       <div className="flex items-center bg-white border border-gray-200 rounded-md px-2 py-1 focus-within:border-green-500 transition-colors mr-2" title="Set WhatsApp Number for Trolley">
+                       <div className="flex items-center bg-white border border-gray-200 rounded-md px-2 py-1 focus-within:border-green-500 transition-colors mr-2" title="Configurar WhatsApp para Sacola">
                          <WhatsAppLogo size={14} className="text-green-600 mr-1.5" />
                          <input 
                             type="text" 
@@ -1269,20 +1378,11 @@ const App: React.FC = () => {
                          />
                        </div>
 
-                       {/* Settings / API Key Button */}
-                       <button 
-                         onClick={() => setIsSettingsOpen(true)}
-                         className={`p-1.5 rounded-md transition-colors ${!apiKey ? 'text-red-500 bg-red-50 animate-pulse' : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'}`}
-                         title="API Key Settings"
-                       >
-                         <Settings size={16} />
-                       </button>
-
                        {/* Logo Upload Button */}
                        <button 
                          onClick={() => logoInputRef.current?.click()}
                          className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-                         title="Upload Brand Logo"
+                         title="Carregar Logo da Marca"
                        >
                          <Stamp size={16} />
                        </button>
@@ -1299,14 +1399,14 @@ const App: React.FC = () => {
                       <button 
                         onClick={() => handleSaveSession(false)}
                         className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-                        title="Save to Cloud"
+                        title="Salvar na Nuvem"
                       >
                         <Cloud size={16} />
                       </button>
                       <button 
                         onClick={handleLoadSession}
                         className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors"
-                        title="Load from Cloud"
+                        title="Carregar da Nuvem"
                       >
                         <FolderOpen size={16} />
                       </button>
@@ -1331,7 +1431,7 @@ const App: React.FC = () => {
 
                     {/* Image Source Selection */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Original Image</h3>
+                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Imagem Original</h3>
                       <div className="flex gap-4 mb-3">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input 
@@ -1341,7 +1441,7 @@ const App: React.FC = () => {
                             onChange={() => handleSourceChange(ImageSourceType.PRESET)}
                             className="text-purple-600 focus:ring-purple-500"
                           />
-                          <span className="text-sm text-gray-700">Existing Product</span>
+                          <span className="text-sm text-gray-700">Produto Existente</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input 
@@ -1351,7 +1451,7 @@ const App: React.FC = () => {
                             onChange={() => handleSourceChange(ImageSourceType.UPLOAD)}
                             className="text-purple-600 focus:ring-purple-500"
                           />
-                          <span className="text-sm text-gray-700">Upload Own</span>
+                          <span className="text-sm text-gray-700">Carregar Própria</span>
                         </label>
                       </div>
 
@@ -1371,7 +1471,7 @@ const App: React.FC = () => {
                           className="w-full border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
                         >
                           <Upload className="h-6 w-6 text-gray-400 mb-2" />
-                          <span className="text-sm text-gray-500">Click to upload image</span>
+                          <span className="text-sm text-gray-500">Clique para carregar imagem</span>
                           <input 
                             ref={fileInputRef}
                             type="file" 
@@ -1387,7 +1487,7 @@ const App: React.FC = () => {
 
                     {/* Multi-Select Action Options */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Select Edits (Multi-Select)</h3>
+                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Selecionar Edições (Multi)</h3>
                       <div className="flex flex-wrap gap-2">
                         {ACTION_OPTIONS.map(opt => {
                           const isActive = state.activeActions.includes(opt.value);
@@ -1418,14 +1518,14 @@ const App: React.FC = () => {
                           <div key={action} className="animate-fadeIn">
                             <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-                                {opt.shortLabel} Details
+                                Detalhes de {opt.shortLabel}
                               </label>
                               <button
                                 onClick={() => handleEnhancePrompt(action)}
                                 disabled={state.isEnhancingPrompt || !state.promptInputs[action]}
                                 className="text-[10px] text-purple-600 hover:text-purple-800 bg-purple-50 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                               >
-                                Auto-Enhance
+                                Melhorar com IA
                               </button>
                             </div>
                             <textarea 
@@ -1437,7 +1537,7 @@ const App: React.FC = () => {
                           </div>
                         );
                       })}
-                      <p className="text-xs text-gray-400 text-right">Combine multiple edits for a complete transformation.</p>
+                      <p className="text-xs text-gray-400 text-right">Combine múltiplas edições para uma transformação completa.</p>
                     </div>
 
                     {/* Generate Button */}
@@ -1456,12 +1556,12 @@ const App: React.FC = () => {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          Creating Magic...
+                          Criando Mágica...
                         </>
                       ) : (
                         <>
                           <Wand2 size={18} />
-                          Generate with AI
+                          Gerar com IA
                         </>
                       )}
                     </button>
@@ -1478,7 +1578,7 @@ const App: React.FC = () => {
                   <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                       <h2 className="font-semibold text-gray-700 flex items-center gap-2">
                         <ImageIcon size={18} className="text-gray-400"/>
-                        Preview Studio
+                        Prévia do Estúdio
                       </h2>
                       {state.generatedImage && (
                         <div className="flex gap-2">
@@ -1486,7 +1586,7 @@ const App: React.FC = () => {
                             onClick={() => downloadImage(state.generatedImage!, 'generated-fashion.png')}
                             className="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-md flex items-center gap-1 transition-colors"
                           >
-                            <Download size={14} /> Download
+                            <Download size={14} /> Baixar
                           </button>
                         </div>
                       )}
@@ -1507,7 +1607,7 @@ const App: React.FC = () => {
                           ) : (
                             <div className="w-full h-full bg-gray-200 flex items-center justify-center flex-col text-gray-400">
                               <ImageIcon size={48} className="mb-2 opacity-50" />
-                              <p>No Image Selected</p>
+                              <p>Nenhuma Imagem Selecionada</p>
                             </div>
                           )}
                           <div className="absolute bottom-4 left-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-medium">Original</div>
@@ -1519,7 +1619,7 @@ const App: React.FC = () => {
                           {/* Before Image (Background) */}
                           <img 
                             src={state.currentImage!} 
-                            alt="Before" 
+                            alt="Antes" 
                             className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
                           />
                           
@@ -1530,7 +1630,7 @@ const App: React.FC = () => {
                           >
                             <img 
                               src={state.generatedImage} 
-                              alt="After" 
+                              alt="Depois" 
                               className="absolute inset-0 w-full max-w-none h-full object-cover"
                               style={{ width: '100vw', maxWidth: '32rem' }}
                             />
@@ -1545,11 +1645,11 @@ const App: React.FC = () => {
                               >
                               <img src={state.generatedImage} className="absolute w-full h-full object-cover" />
                               <div className="absolute top-4 left-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white px-2 py-0.5 rounded text-xs shadow-sm font-bold">
-                                After
+                                Depois
                               </div>
                             </div>
                             <div className="absolute top-4 right-4 bg-black/60 text-white px-2 py-0.5 rounded text-xs shadow-sm font-bold">
-                                Before
+                                Antes
                             </div>
                             <div 
                                 className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize z-10 shadow-[0_0_10px_rgba(0,0,0,0.5)]"
@@ -1580,14 +1680,14 @@ const App: React.FC = () => {
                           className="flex-1 bg-white border border-gray-300 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                         >
                           <Save size={16} />
-                          Save to Catalog
+                          Salvar no Catálogo
                         </button>
                         <button 
                           onClick={handleUseGenerated}
                           className="flex-1 bg-black hover:bg-gray-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                         >
                           <CheckCircle2 size={16} />
-                          Use as Base
+                          Usar como Base
                         </button>
                     </div>
                   )}
@@ -1598,13 +1698,13 @@ const App: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                         <Hash size={18} className="text-pink-500" />
-                        Social Boost (Hashtags)
+                        Impulso Social (Hashtags)
                       </h3>
                       <button 
                         onClick={handleGenerateTags}
                         className="text-xs bg-pink-50 hover:bg-pink-100 text-pink-700 font-medium px-3 py-1.5 rounded-md transition-colors"
                       >
-                        {state.isGeneratingTags ? 'Searching...' : 'Find Trending Tags'}
+                        {state.isGeneratingTags ? 'Buscando...' : 'Buscar Hashtags'}
                       </button>
                   </div>
                   
@@ -1613,7 +1713,7 @@ const App: React.FC = () => {
                         <button 
                           onClick={copyTags}
                           className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 p-1 rounded-md hover:bg-white transition-all"
-                          title="Copy all tags"
+                          title="Copiar todas"
                         >
                           <Copy size={16} />
                         </button>
@@ -1627,7 +1727,7 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     <div className="text-sm text-gray-400 text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                      Click "Find Trending Tags" to discover Portuguese keywords for your design.
+                      Clique "Buscar Hashtags" para descobrir tendências.
                     </div>
                   )}
                 </div>

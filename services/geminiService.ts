@@ -5,10 +5,8 @@ import { ACTION_OPTIONS } from "../constants";
 const IMAGE_MODEL_NAME = 'gemini-2.5-flash-image';
 const TEXT_MODEL_NAME = 'gemini-2.5-flash';
 
-// Helper to get client with dynamic key
-const getAiClient = (apiKey: string) => {
-  return new GoogleGenAI({ apiKey });
-};
+// Initialize the client with the environment variable
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * Helper to fetch a URL and convert it to base64 string
@@ -30,7 +28,7 @@ export async function urlToBase64(url: string): Promise<string> {
 function extractBase64Data(dataUrl: string): { mimeType: string; data: string } {
   const matches = dataUrl.match(/^data:(.+);base64,(.+)$/);
   if (!matches || matches.length !== 3) {
-    throw new Error("Invalid base64 string format");
+    throw new Error("Formato de string base64 inválido");
   }
   return {
     mimeType: matches[1],
@@ -43,11 +41,6 @@ export async function generateEditedImage(
   prompt: string,
   action: EditingAction
 ): Promise<string> {
-  const apiKey = localStorage.getItem("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("API Key missing. Please set it in Settings.");
-
-  const ai = getAiClient(apiKey);
-
   try {
     // Construct the prompt based on the action template
     const actionConfig = ACTION_OPTIONS.find(opt => opt.value === action);
@@ -78,7 +71,7 @@ export async function generateEditedImage(
     const parts = response.candidates?.[0]?.content?.parts;
     
     if (!parts) {
-      throw new Error("No content generated");
+      throw new Error("Nenhum conteúdo gerado");
     }
 
     for (const part of parts) {
@@ -87,7 +80,7 @@ export async function generateEditedImage(
       }
     }
 
-    throw new Error("No image data found in response");
+    throw new Error("Nenhum dado de imagem encontrado na resposta");
 
   } catch (error) {
     console.error("Gemini API Error:", error);
@@ -96,11 +89,6 @@ export async function generateEditedImage(
 }
 
 export async function generateHashtags(context: string): Promise<string[]> {
-  const apiKey = localStorage.getItem("GEMINI_API_KEY");
-  if (!apiKey) throw new Error("API Key missing.");
-  
-  const ai = getAiClient(apiKey);
-
   try {
     const response = await ai.models.generateContent({
       model: TEXT_MODEL_NAME,
@@ -122,25 +110,20 @@ export async function generateHashtags(context: string): Promise<string[]> {
     return tags;
   } catch (error) {
     console.error("Gemini Tag Gen Error:", error);
-    throw new Error("Failed to generate tags");
+    throw new Error("Falha ao gerar hashtags");
   }
 }
 
 export async function enhancePrompt(currentPrompt: string, action: EditingAction): Promise<string> {
-  const apiKey = localStorage.getItem("GEMINI_API_KEY");
-  if (!apiKey) return currentPrompt;
-
-  const ai = getAiClient(apiKey);
-
   try {
     const response = await ai.models.generateContent({
       model: TEXT_MODEL_NAME,
-      contents: `You are a professional fashion photographer and AI prompter. Rewrite the following user prompt to be more descriptive, focusing on lighting, fabric texture, and realistic details to get the best result from an image generation model.
+      contents: `You are a professional fashion photographer and AI prompter. Rewrite the following user prompt (which may be in Portuguese) to be more descriptive, focusing on lighting, fabric texture, and realistic details to get the best result from an image generation model.
       
       User Prompt: "${currentPrompt}"
       Context/Action: ${action}
       
-      Keep it concise (under 40 words) but impactful. Do not add conversational text, just return the improved prompt string.`,
+      Keep it concise (under 40 words) but impactful. Translate the intent to English for better model performance if needed, or keep high quality Portuguese. Do not add conversational text, just return the improved prompt string.`,
     });
     return response.text?.trim() || currentPrompt;
   } catch (error) {
